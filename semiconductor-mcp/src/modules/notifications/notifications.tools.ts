@@ -14,17 +14,19 @@ export class NotificationsTools {
     @Tool({
         name: 'notify_incident_stakeholders',
         title: 'Notify Incident Stakeholders',
-        description: 'Analyzes a yield incident, classifies severity, loads stakeholders from Google Sheets, generates role-specific emails, and sends them through the configured email provider. Use dryRun=true to preview without sending.',
+        description: 'Analyzes a yield incident, classifies severity, loads stakeholders from Google Sheets, generates role-specific emails, and sends them through the configured email provider. Set allStakeholders=true when the user asks to email everyone. For a role-specific request such as Design Lead, use recipientRoles so the address is resolved from the Stakeholders tab. Never invent an email address. Use dryRun=true to preview without sending.',
         inputSchema: z.object({
             lotId: z.string().describe('The lot ID to analyze and notify about, e.g. LOT-8923'),
             shipmentId: z.string().optional().describe('Optional shipment ID to include shipment risk context'),
             dryRun: z.boolean().optional().describe('Preview recipients without sending email. Defaults to false.'),
+            allStakeholders: z.boolean().optional().describe('Send to every valid stakeholder in the Stakeholders tab, ignoring severity filters.'),
+            recipientRoles: z.array(z.string()).optional().describe('Optional stakeholder roles to resolve from the Stakeholders tab, e.g. ["Design Lead"].'),
             customRecipients: z.array(z.object({ name: z.string(), email: z.string(), role: z.string() })).optional().describe('Optional recipient override.'),
         }),
         annotations: { readOnlyHint: false, destructiveHint: false },
         invocation: { invoking: 'Analyzing incident and notifying stakeholders...', invoked: 'Incident notifications sent' },
     })
-    async notify(input: { lotId: string; shipmentId?: string; dryRun?: boolean; customRecipients?: { name: string; email: string; role: string }[] }, ctx: ExecutionContext) {
+    async notify(input: { lotId: string; shipmentId?: string; dryRun?: boolean; allStakeholders?: boolean; recipientRoles?: string[]; customRecipients?: { name: string; email: string; role: string }[] }, ctx: ExecutionContext) {
         try {
             const lotId = String(input.lotId).replace(/^lotId:\s*/i, '').trim();
             const shipmentId = input.shipmentId ? String(input.shipmentId).replace(/^shipmentId:\s*/i, '').trim() : undefined;
@@ -36,6 +38,10 @@ export class NotificationsTools {
             let stakeholders: { name: string; email: string; role: string; notifyOn: Severity[] }[];
             stakeholders = input.customRecipients?.length
                 ? input.customRecipients.map((recipient) => ({ ...recipient, notifyOn: ['Critical', 'High', 'Medium', 'Low'] as Severity[] }))
+                : input.recipientRoles?.length
+                    ? await this.notificationsService.getStakeholdersByRole(input.recipientRoles)
+                : input.allStakeholders
+                    ? await this.notificationsService.getAllStakeholders()
                 : await this.notificationsService.getStakeholders(severity, result.shipmentRisk?.risk ?? false);
 
             const sent: { name: string; email: string; status: string }[] = [];

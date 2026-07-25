@@ -520,7 +520,7 @@ Given a batchId (lotId), this tool:
 }
 ```
 
-The tool calls the root-cause service, classifies the result as Critical, High, Medium, or Low, loads matching recipients from the `Stakeholders` sheet, and sends through the provider-backed SMTP email service. `dryRun: true` previews recipients without sending. Each real delivery is recorded in `Notification Audit`.
+The tool calls the root-cause service, classifies the result as Critical, High, Medium, or Low, loads matching recipients from the `Stakeholders` sheet, and sends through the provider-backed SMTP email service. Use `recipientRoles` for role-specific requests such as `Design Lead`; addresses are resolved from the sheet and are never invented. `dryRun: true` previews recipients without sending. Each real delivery is recorded in `Notification Audit`.
 
 ---
 
