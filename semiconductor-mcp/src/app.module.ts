@@ -5,6 +5,7 @@ import { QualityTestModule } from './modules/quality/quality.module.js';
 import { ProductDocModule } from './modules/product/product.module.js';
 import { ShippingTradeModule } from './modules/shipping/shipping.module.js';
 import { RootCauseAnalysisModule } from './modules/root-cause-analysis/root-cause-analysis.module.js';
+import { GoogleSheetsService } from './modules/google-sheets/google-sheets.service.js';
 
 /**
  * Root Application Module
@@ -33,5 +34,6 @@ import { RootCauseAnalysisModule } from './modules/root-cause-analysis/root-caus
         ShippingTradeModule,
         RootCauseAnalysisModule,
     ],
+    providers: [GoogleSheetsService],
 })
 export class AppModule { }
