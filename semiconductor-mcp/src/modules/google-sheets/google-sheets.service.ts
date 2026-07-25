@@ -50,7 +50,13 @@ function parseCsv(csv: string): Record<string, string>[] {
         const values = parseCsvLine(lines[i]);
         const row: Record<string, string> = {};
         headers.forEach((h, idx) => {
-            row[h] = values[idx] || '';
+            // Stakeholder notifyOn values are commonly entered as
+            // Critical,High,Medium,Low without CSV quoting. Preserve any
+            // extra comma-separated values in the final declared column.
+            const value = idx === headers.length - 1
+                ? values.slice(idx).join(',')
+                : values[idx];
+            row[h] = value || '';
         });
         rows.push(row);
     }

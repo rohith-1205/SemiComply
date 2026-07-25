@@ -47,17 +47,7 @@ export class NotificationsService {
     }
 
     async getStakeholders(severity: Severity, hasShipmentRisk: boolean): Promise<Stakeholder[]> {
-        const rows = await this.sheets.fetchSheet('Stakeholders');
-        const stakeholders = rows.map((row) => ({
-            name: row.name || '',
-            email: row.email || '',
-            role: row.role || '',
-            notifyOn: this.parseNotifyOn(row.notifyOn || ''),
-        })).filter((stakeholder) => stakeholder.name && stakeholder.email);
-
-        if (!stakeholders.length) {
-            throw new Error('No valid stakeholders found in the Stakeholders tab.');
-        }
+        const stakeholders = await this.loadStakeholders();
 
         const matched = stakeholders.filter((stakeholder) => stakeholder.notifyOn.includes(severity));
         if (hasShipmentRisk) {
@@ -67,10 +57,62 @@ export class NotificationsService {
         return matched;
     }
 
+    async getAllStakeholders(): Promise<Stakeholder[]> {
+        return this.loadStakeholders();
+    }
+
+    async getStakeholdersByRole(roles: string[]): Promise<Stakeholder[]> {
+        const stakeholders = await this.loadStakeholders();
+        const requestedRoles = roles.map((role) => this.normalizeRole(role)).filter(Boolean);
+        const matched = stakeholders.filter((stakeholder) => {
+            const searchableFields = [stakeholder.role, stakeholder.name].map((value) => this.normalizeRole(value));
+            return requestedRoles.some((requested) => searchableFields.some((actual) => {
+                if (actual === requested || actual.includes(requested)) return true;
+                const requestedWords = requested.split(' ').filter(Boolean);
+                return requestedWords.length > 1 && requestedWords.every((word) => actual.includes(word));
+            }));
+        });
+
+        if (!matched.length) {
+            throw new Error(`No stakeholder found for role(s): ${roles.join(', ')}. No email was sent.`);
+        }
+        return matched;
+    }
+
+    private normalizeRole(value: string): string {
+        return value
+            .replace(/\uFEFF/g, '')
+            .replace(/\u00A0/g, ' ')
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, ' ')
+            .trim()
+            .replace(/\s+/g, ' ');
+    }
+
+    private async loadStakeholders(): Promise<Stakeholder[]> {
+        const rows = await this.sheets.fetchSheet('Stakeholders');
+        const stakeholders = rows.map((row) => ({
+            name: row.name || '',
+            email: row.email || '',
+            role: row.role || '',
+            notifyOn: this.parseNotifyOn(row.notifyOn || ''),
+        })).filter((stakeholder) => stakeholder.name && stakeholder.email && stakeholder.role);
+
+        if (!stakeholders.length) {
+            throw new Error('No valid stakeholders found in the Stakeholders tab.');
+        }
+        return stakeholders;
+    }
+
     private parseNotifyOn(raw: string): Severity[] {
         const valid: Severity[] = ['Critical', 'High', 'Medium', 'Low'];
-        const parsed = raw.split(',').map((value) => value.trim()).filter((value): value is Severity => valid.includes(value as Severity));
-        return parsed.length ? parsed : valid;
+        const parsed = raw
+            .replace(/"/g, '')
+            .split(',')
+            .map((value) => value.trim().toLowerCase())
+            .filter((value): value is Lowercase<Severity> => ['critical', 'high', 'medium', 'low'].includes(value));
+        const normalized = parsed.map((value) => (value.charAt(0).toUpperCase() + value.slice(1)) as Severity);
+        return normalized.length ? normalized : valid;
     }
 
     generateEmail(result: RootCauseResult, severity: Severity, stakeholder: Stakeholder): { subject: string; html: string; text: string } {
