@@ -23,10 +23,11 @@
   "author": "Rohith S,Arun Pravin AP ,Varum M ,Mithuraa S",
   "license": "MIT",
   "dependencies": {
+    "@modelcontextprotocol/ext-apps": ">=0.1.0",
     "@nitrostack/core": "^1.0.14",
-    "zod": "^3.22.4",
     "dotenv": "^16.3.1",
-    "@modelcontextprotocol/ext-apps": ">=0.1.0"
+    "googleapis": "^173.0.0",
+    "zod": "^3.22.4"
   },
   "devDependencies": {
     "@nitrostack/cli": "^1.0.15",

@@ -1,7 +1,10 @@
 import { Injectable } from '@nitrostack/core';
+import { google, sheets_v4 } from 'googleapis';
+import * as fs from 'fs';
+import * as path from 'path';
 
-const SHEET_ID = '2PACX-1vTM9gAH-TLKghwnmwWQNRrSeVXlXOiMNSGoP7B7IMpxU7KPJoZLfMpkCdZoyRdHXJTEP2oXroBVV5Hj';
-const BASE_URL = `https://docs.google.com/spreadsheets/d/e/${SHEET_ID}/pub`;
+const PUBLISHED_SHEET_ID = '2PACX-1vTM9gAH-TLKghwnmwWQNRrSeVXlXOiMNSGoP7B7IMpxU7KPJoZLfMpkCdZoyRdHXJTEP2oXroBVV5Hj';
+const PUBLISHED_BASE_URL = `https://docs.google.com/spreadsheets/d/e/${PUBLISHED_SHEET_ID}/pub`;
 
 function parseCsvLine(line: string): string[] {
     const result: string[] = [];
@@ -58,6 +61,7 @@ function parseCsv(csv: string): Record<string, string>[] {
 export class GoogleSheetsService {
     private cache = new Map<string, { data: Record<string, string>[]; timestamp: number }>();
     private readonly CACHE_TTL = 30_000;
+    private sheetsClient: sheets_v4.Sheets | null = null;
 
     private readonly TAB_GIDS: Record<string, string> = {
         'Design Revisions': '0',
@@ -66,6 +70,44 @@ export class GoogleSheetsService {
         'Product Specs': '710900377',
         'Shipping': '23966863',
     };
+
+    private readonly TAB_COLUMNS: Record<string, string> = {
+        'Design Revisions': 'revisionId,lotId,designer,ipBlock,changes,timestamp',
+        'MES Telemetry': 'lotId,stationId,recipeName,chamberPressure,temperature,operatorId',
+        'Yield Data': 'lotId,totalWafersTested,overallYield,failingBins',
+        'Product Specs': 'productId,lotId,datasheetUrl,operatingVoltage,maxThermalThreshold,complianceCertifications',
+        'Shipping': 'shipmentId,productId,lotId,origin,destination,eccnClassification,hsCode,applicableTariffs,status,routeOrder,timestamp',
+    };
+
+    private getSpreadsheetId(): string {
+        return process.env.GOOGLE_SPREADSHEET_ID || '';
+    }
+
+    private async authorize(): Promise<sheets_v4.Sheets> {
+        if (this.sheetsClient) return this.sheetsClient;
+
+        const keyPath = process.env.GOOGLE_SERVICE_ACCOUNT_PATH || './credentials/service-account.json';
+        const fullPath = path.resolve(keyPath);
+
+        if (!fs.existsSync(fullPath)) {
+            throw new Error(`Service account key not found at ${fullPath}. Set GOOGLE_SERVICE_ACCOUNT_PATH in .env`);
+        }
+
+        const keyFile = JSON.parse(fs.readFileSync(fullPath, 'utf-8'));
+
+        const auth = new google.auth.GoogleAuth({
+            credentials: {
+                client_email: keyFile.client_email,
+                private_key: keyFile.private_key,
+            },
+            scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+        });
+
+        this.sheetsClient = google.sheets({ version: 'v4', auth });
+        return this.sheetsClient;
+    }
+
+    // ─── Read Methods (published CSV) ────────────────────────────────
 
     async fetchSheet(tabName: string): Promise<Record<string, string>[]> {
         const cached = this.cache.get(tabName);
@@ -78,7 +120,7 @@ export class GoogleSheetsService {
             throw new Error(`Unknown tab name: "${tabName}". Available: ${Object.keys(this.TAB_GIDS).join(', ')}`);
         }
 
-        const url = `${BASE_URL}?output=csv&gid=${gid}`;
+        const url = `${PUBLISHED_BASE_URL}?output=csv&gid=${gid}`;
         const response = await fetch(url);
 
         if (!response.ok) {
@@ -104,5 +146,31 @@ export class GoogleSheetsService {
             }
         }
         return map;
+    }
+
+    // ─── Write Methods (Sheets API v4) ────────────────────────────────
+
+    async appendRow(tabName: string, values: string[]): Promise<{ updatedRange: string }> {
+        const client = await this.authorize();
+        const spreadsheetId = this.getSpreadsheetId();
+        const columns = this.TAB_COLUMNS[tabName];
+        if (!columns) throw new Error(`Unknown tab: "${tabName}"`);
+
+        const response = await client.spreadsheets.values.append({
+            spreadsheetId,
+            range: `'${tabName}'!A:Z`,
+            valueInputOption: 'USER_ENTERED',
+            insertDataOption: 'INSERT_ROWS',
+            requestBody: { values: [values] },
+        });
+
+        this.invalidateCache(tabName);
+
+        const updatedRange = response.data.updates?.updatedRange || '';
+        return { updatedRange };
+    }
+
+    invalidateCache(tabName: string): void {
+        this.cache.delete(tabName);
     }
 }
