@@ -6,6 +6,7 @@ import { ProductDocModule } from './modules/product/product.module.js';
 import { ShippingTradeModule } from './modules/shipping/shipping.module.js';
 import { RootCauseAnalysisModule } from './modules/root-cause-analysis/root-cause-analysis.module.js';
 import { WaferGenealogyModule } from './modules/wafer-genealogy/wafer-genealogy.module.js';
+import { NotificationsModule } from './modules/notifications/notifications.module.js';
 import { GoogleSheetsService } from './modules/google-sheets/google-sheets.service.js';
 
 /**
@@ -35,6 +36,7 @@ import { GoogleSheetsService } from './modules/google-sheets/google-sheets.servi
         ShippingTradeModule,
         RootCauseAnalysisModule,
         WaferGenealogyModule,
+        NotificationsModule,
     ],
     providers: [GoogleSheetsService],
 })

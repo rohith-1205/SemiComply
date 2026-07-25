@@ -40,7 +40,7 @@ function parseCsvLine(line: string): string[] {
 }
 
 function parseCsv(csv: string): Record<string, string>[] {
-    const lines = csv.split('\n').filter((l) => l.trim());
+    const lines = csv.split('\n').map((line) => line.replace(/\r$/, '')).filter((l) => l.trim());
     if (lines.length < 2) return [];
 
     const headers = parseCsvLine(lines[0]);
@@ -69,6 +69,7 @@ export class GoogleSheetsService {
         'Yield Data': '318655177',
         'Product Specs': '710900377',
         'Shipping': '23966863',
+        'Stakeholders': '349240231',
     };
 
     private readonly TAB_COLUMNS: Record<string, string> = {
@@ -77,6 +78,8 @@ export class GoogleSheetsService {
         'Yield Data': 'lotId,totalWafersTested,overallYield,failingBins',
         'Product Specs': 'productId,lotId,datasheetUrl,operatingVoltage,maxThermalThreshold,complianceCertifications',
         'Shipping': 'shipmentId,productId,lotId,origin,destination,eccnClassification,hsCode,applicableTariffs,status,routeOrder,timestamp',
+        'Stakeholders': 'name,email,role,notifyOn',
+        'Notification Audit': 'timestamp,incidentId,lotId,severity,recipients,subject,status,channel,messageId',
     };
 
     private getSpreadsheetId(): string {
@@ -86,19 +89,30 @@ export class GoogleSheetsService {
     private async authorize(): Promise<sheets_v4.Sheets> {
         if (this.sheetsClient) return this.sheetsClient;
 
-        const keyPath = process.env.GOOGLE_SERVICE_ACCOUNT_PATH || './credentials/service-account.json';
-        const fullPath = path.resolve(keyPath);
+        let clientEmail = process.env.GOOGLE_CLIENT_EMAIL;
+        let privateKey = process.env.GOOGLE_PRIVATE_KEY;
 
-        if (!fs.existsSync(fullPath)) {
-            throw new Error(`Service account key not found at ${fullPath}. Set GOOGLE_SERVICE_ACCOUNT_PATH in .env`);
+        if (!clientEmail || !privateKey) {
+            const keyPath = process.env.GOOGLE_SERVICE_ACCOUNT_PATH || './credentials/service-account.json';
+            const fullPath = path.resolve(keyPath);
+
+            if (!fs.existsSync(fullPath)) {
+                throw new Error(`Google credentials not found. Set GOOGLE_CLIENT_EMAIL and GOOGLE_PRIVATE_KEY, or GOOGLE_SERVICE_ACCOUNT_PATH in .env.`);
+            }
+
+            const keyFile = JSON.parse(fs.readFileSync(fullPath, 'utf-8'));
+            clientEmail = keyFile.client_email;
+            privateKey = keyFile.private_key;
         }
 
-        const keyFile = JSON.parse(fs.readFileSync(fullPath, 'utf-8'));
+        if (!clientEmail || !privateKey) {
+            throw new Error('Google service-account credentials are incomplete.');
+        }
 
         const auth = new google.auth.GoogleAuth({
             credentials: {
-                client_email: keyFile.client_email,
-                private_key: keyFile.private_key,
+                client_email: clientEmail,
+                private_key: privateKey.replace(/\\n/g, '\n'),
             },
             scopes: ['https://www.googleapis.com/auth/spreadsheets'],
         });
@@ -153,6 +167,9 @@ export class GoogleSheetsService {
     async appendRow(tabName: string, values: string[]): Promise<{ updatedRange: string }> {
         const client = await this.authorize();
         const spreadsheetId = this.getSpreadsheetId();
+        if (!spreadsheetId) {
+            throw new Error('GOOGLE_SPREADSHEET_ID is not configured.');
+        }
         const columns = this.TAB_COLUMNS[tabName];
         if (!columns) throw new Error(`Unknown tab: "${tabName}"`);
 
