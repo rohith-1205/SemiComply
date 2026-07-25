@@ -118,6 +118,7 @@ Response (JSON) → AI synthesizes answer → User sees result + widget
 | 5 | `get_shipping_and_trade_compliance` | Shipping/Trade | Retrieve shipment route, ECCN, tariffs, customs status |
 | 6 | `analyze_yield_root_cause` | Orchestrator | Cross-domain correlation and root-cause diagnosis |
 | 7 | `trace_wafer_genealogy` | Lifecycle | Structured lifecycle timeline with product, design, manufacturing, testing, and shipping route |
+| 8 | `notify_incident_stakeholders` | Notifications | Classify incidents, notify configured stakeholders by email, and write an audit trail |
 
 ### 3.2 Tool Details
 
@@ -504,6 +505,23 @@ Given a batchId (lotId), this tool:
 - Shipping route with origin/destination, ECCN, tariffs, and blocked/cleared status
 - Clean editorial design — no emoji, minimal color, proper typographic hierarchy
 
+#### 3.2.8 `notify_incident_stakeholders` (Notification Orchestrator)
+
+**Module:** `NotificationsModule`  
+**Role:** Analyze a yield incident, classify severity, select stakeholders, send role-specific email, and record an audit entry.
+
+**Input:**
+```json
+{
+  "lotId": "LOT-8923",
+  "shipmentId": "SHIP-2026-04471",
+  "dryRun": true,
+  "customRecipients": [{ "name": "VP Engineering", "email": "vp@example.com", "role": "Engineering" }]
+}
+```
+
+The tool calls the root-cause service, classifies the result as Critical, High, Medium, or Low, loads matching recipients from the `Stakeholders` sheet, and sends through the provider-backed SMTP email service. `dryRun: true` previews recipients without sending. Each real delivery is recorded in `Notification Audit`.
+
 ---
 
 ## 4. Data Backend (Google Sheets)
@@ -528,6 +546,8 @@ Given a batchId (lotId), this tool:
 | `Yield Data` | `318655177` | `lotId` | `lotId`, `totalWafersTested`, `overallYield`, `failingBins` |
 | `Product Specs` | `710900377` | `productId` | `productId`, `lotId`, `datasheetUrl`, `operatingVoltage`, `maxThermalThreshold`, `complianceCertifications` |
 | `Shipping` | `23966863` | `shipmentId` | `shipmentId`, `productId`, `lotId`, `origin`, `destination`, `eccnClassification`, `hsCode`, `applicableTariffs`, `status`, `routeOrder`, `timestamp` |
+| `Stakeholders` | `<published GID>` | `name` | `name`, `email`, `role`, `notifyOn` |
+| `Notification Audit` | — | `incidentId` | `timestamp`, `incidentId`, `lotId`, `severity`, `recipients`, `subject`, `status`, `channel`, `messageId` |
 
 ### 4.3 Adding New Data
 
@@ -645,6 +665,12 @@ semiconductor-mcp/
 │               ├── quality.contributor.ts       # Searches Yield tab by lotId
 │               ├── product.contributor.ts       # Searches Product tab by lotId
 │               └── shipping.contributor.ts      # Searches Shipping tab by lotId, sorts by routeOrder
+│       └── notifications/                      # Incident notification module
+│           ├── notifications.module.ts
+│           ├── notifications.service.ts         # Severity, stakeholder lookup, email content, audit logging
+│           ├── notifications.tools.ts           # notify_incident_stakeholders
+│           ├── email.service.ts                 # Provider delegator
+│           └── email.provider.ts                # EmailProvider + SMTP implementation
 ├── src/widgets/                                # NitroStack Widgets (Next.js)
 │   ├── app/
 │   │   ├── layout.tsx                          # Widget root layout
@@ -674,6 +700,7 @@ semiconductor-mcp/
 | **CSV Parsing** | Custom parser (built-in) | Parses CSV with proper quote handling |
 | **Failing Bins** | Regex parser | Handles en-dash (`–`) separator in text-format bins |
 | **Widgets** | NitroStack Widgets (Next.js) | Interactive HTML widgets rendered in NitroStudio |
+| **Email Delivery** | nodemailer via EmailProvider | Provider-swappable incident email delivery |
 | **Testing** | NitroStudio | Visual tool testing + AI chat interface |
 | **AI Integration** | MCP Protocol | Standard protocol for AI-tool communication |
 
@@ -773,6 +800,13 @@ npm start
 | "Trace the genealogy of LOT-67234" | `trace_wafer_genealogy` | `batchId: "LOT-67234"` |
 | "What's the full history of NPU-ACCELERATOR?" | `trace_wafer_genealogy` | `batchId: "LOT-91456"` |
 
+### Notification Queries
+
+| Query | Tool Called | Parameters |
+|---|---|---|
+| "Notify stakeholders about LOT-8923" | `notify_incident_stakeholders` | `lotId: "LOT-8923"` |
+| "Preview notification emails for LOT-8923" | `notify_incident_stakeholders` | `lotId: "LOT-8923"`, `dryRun: true` |
+
 ---
 
 ## 9. Security
@@ -848,6 +882,7 @@ async myTool(input: MyInput, ctx: ExecutionContext) {
 | 4 | Correlate design + test data, explain why a test failed | `analyze_yield_root_cause` (orchestrates 1-3 internally) |
 | 5 | Analyze international trade routes, taxes, laws, orders, shipping | `get_shipping_and_trade_compliance` |
 | 6 | Full lifecycle trace with structured timeline | `trace_wafer_genealogy` (orchestrates all 5 internally) |
+| 7 | Automated incident response and stakeholder notification | `notify_incident_stakeholders` (root cause + provider email + audit) |
 | — | Supporting reference data (compliance limits) | `get_product_datasheet_specs` |
 | — | Product-to-shipment relationship | `get_shipping_and_trade_compliance` (productId lookup) |
 
