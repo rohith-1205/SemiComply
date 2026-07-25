@@ -94,7 +94,7 @@ A single MCP server exposing six modules — five domain modules that each wrap 
 Each tool is defined using NitroStack's `@Tool` decorator with a Zod input schema for runtime validation and automatic form generation in NitroStudio.
 
 ### 4.1 `get_cadence_design_revision`
-- **Module:** `DesignModule` (`src/modules/design`)
+- **Module:** `DesignModule` (`semiconductor-mcp/src/modules/design`)
 - **Purpose:** Retrieves layout/IP block revision metadata without returning raw multi-gigabyte GDSII/OASIS binaries — only the metadata an LLM needs to reason about a design change.
 - **Input Schema:**
   ```typescript
@@ -114,7 +114,7 @@ Each tool is defined using NitroStack's `@Tool` decorator with a Zod input schem
   ```
 
 ### 4.2 `get_manufacturing_mes_telemetry`
-- **Module:** `ManufacturingMESModule` (`src/modules/manufacturing`)
+- **Module:** `ManufacturingMESModule` (`semiconductor-mcp/src/modules/manufacturing`)
 - **Purpose:** Fetches machine-level process telemetry (chamber pressure, temperature, recipe, operator) for a given wafer lot, flagging any threshold excursions.
 - **Input Schema:**
   ```typescript
@@ -135,7 +135,7 @@ Each tool is defined using NitroStack's `@Tool` decorator with a Zod input schem
   ```
 
 ### 4.3 `get_lot_yield_summary`
-- **Module:** `QualityTestModule` (`src/modules/quality`)
+- **Module:** `QualityTestModule` (`semiconductor-mcp/src/modules/quality`)
 - **Purpose:** Parses STDF (Standard Test Data Format) binary test logs server-side and returns only a lightweight, summarized yield report — avoiding the payload bloat of raw binary test data.
 - **Input Schema:**
   ```typescript
@@ -157,7 +157,7 @@ Each tool is defined using NitroStack's `@Tool` decorator with a Zod input schem
   ```
 
 ### 4.4 `get_product_datasheet_specs`
-- **Module:** `ProductDocModule` (`src/modules/product`)
+- **Module:** `ProductDocModule` (`semiconductor-mcp/src/modules/product`)
 - **Purpose:** Searches SharePoint-style document repositories for a product's official datasheet, operating limits, and compliance certifications.
 - **Input Schema:**
   ```typescript
@@ -177,7 +177,7 @@ Each tool is defined using NitroStack's `@Tool` decorator with a Zod input schem
   ```
 
 ### 4.5 `get_shipping_and_trade_compliance`
-- **Module:** `ShippingTradeModule` (`src/modules/shipping`)
+- **Module:** `ShippingTradeModule` (`semiconductor-mcp/src/modules/shipping`)
 - **Purpose:** Retrieves international shipment logistics, export control classification (ECCN), HS code, applicable tariffs, and customs status for a given shipment.
 - **Input Schema:**
   ```typescript
@@ -199,7 +199,7 @@ Each tool is defined using NitroStack's `@Tool` decorator with a Zod input schem
   ```
 
 ### 4.6 `analyze_yield_root_cause` (Orchestrator — Agentic Core)
-- **Module:** `RootCauseAnalysisModule` (`src/modules/root-cause-analysis`)
+- **Module:** `RootCauseAnalysisModule` (`semiconductor-mcp/src/modules/root-cause-analysis`)
 - **Purpose:** The agentic centerpiece of the system. Given a lot ID (and optionally a shipment ID), this tool autonomously calls the manufacturing, quality, and design tools internally, correlates the results to identify a probable root cause, and — if a shipment is linked — checks whether that shipment carries downstream compliance or quality risk.
 - **Input Schema:**
   ```typescript
@@ -250,35 +250,35 @@ export class AuthGuard implements CanActivate {
 ## 6. Project Structure
 
 ```
-src/
-    app.module.ts                   # Root application module registering all 6 modules
-    index.ts                        # Server entry point and stdio bootstrap
-    modules/
-        design/                     # Cadence Design Revision Module
-            design.module.ts
-            design.service.ts
-            design.tools.ts
-        manufacturing/              # GE Vernova MES Telemetry Module
-            manufacturing.module.ts
-            manufacturing.service.ts
-            manufacturing.tools.ts
-        quality/                    # STDF Quality & Test Diagnostics Module
-            quality.module.ts
-            quality.service.ts
-            quality.tools.ts
-        product/                    # Product Datasheets & Specs Module
-            product.module.ts
-            product.service.ts
-            product.tools.ts
-        shipping/                   # Shipping & Trade Compliance Module
-            shipping.module.ts
-            shipping.service.ts
-            shipping.tools.ts
-        root-cause-analysis/        # Agentic Orchestrator Module
-            root-cause-analysis.module.ts
-            root-cause-analysis.service.ts
-            root-cause-analysis.tools.ts
-    widgets/                        # Optional Widget UI components
+semiconductor-mcp/
+├── src/
+│   ├── app.module.ts                   # Root application module registering all 6 modules
+│   ├── index.ts                        # Server entry point and stdio bootstrap
+│   └── modules/
+│       ├── design/                     # Cadence Design Revision Module
+│       │   ├── design.module.ts
+│       │   ├── design.service.ts
+│       │   └── design.tools.ts
+│       ├── manufacturing/              # GE Vernova MES Telemetry Module
+│       │   ├── manufacturing.module.ts
+│       │   ├── manufacturing.service.ts
+│       │   └── manufacturing.tools.ts
+│       ├── quality/                    # STDF Quality & Test Diagnostics Module
+│       │   ├── quality.module.ts
+│       │   ├── quality.service.ts
+│       │   └── quality.tools.ts
+│       ├── product/                    # Product Datasheets & Specs Module
+│       │   ├── product.module.ts
+│       │   ├── product.service.ts
+│       │   └── product.tools.ts
+│       ├── shipping/                   # Shipping & Trade Compliance Module
+│       │   ├── shipping.module.ts
+│       │   ├── shipping.service.ts
+│       │   └── shipping.tools.ts
+│       └── root-cause-analysis/        # Agentic Orchestrator Module
+│           ├── root-cause-analysis.module.ts
+│           ├── root-cause-analysis.service.ts
+│           └── root-cause-analysis.tools.ts
 ```
 
 ---
