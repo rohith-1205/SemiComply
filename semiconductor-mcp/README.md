@@ -1,4 +1,4 @@
-# Unified Semiconductor Lifecycle MCP Server
+## Unified Semiconductor Lifecycle MCP Server
 
 > **Track:** Manufacturing & Industry Platform  
 > **Framework:** [NitroStack](https://nitrostack.ai) (MCP Framework + SDK)  
