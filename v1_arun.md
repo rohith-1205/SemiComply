@@ -17,11 +17,11 @@ This project implements a **Unified Semiconductor Lifecycle MCP Server** — a s
 
 **What it does in plain English:**
 
-An engineer asks: *"Why did Lot LOT-8923's yield drop, and is the affected shipment safe?"*
+An engineer asks: *"Show me the lifecycle of LOT-8923"*
 
 Without this server, they'd manually query 4-5 systems, copy data between spreadsheets, and call 3 teams. With this server, one tool call returns:
 
-> "The etch chamber had a pressure excursion (14.2 mTorr vs 12.0 threshold), which correlates with 184 leakage failures. No design issue. The shipment is also on customs hold for a missing export license — resolve both before release."
+> "LOT-8923 is SERDES-PHY-BLOCK. Designed by A. Sharma (Nov 2025) then R. Chen (Jan 2026). Fabricated at Hsinchu Fab — 3 process steps including an etch chamber with pressure excursion. Tested at 81.4% yield (184 leakage failures). Shipped Taiwan → Austin (on customs hold) → Munich (cleared)."
 
 ---
 
@@ -32,15 +32,14 @@ Without this server, they'd manually query 4-5 systems, copy data between spread
 ```
 ┌──────────────────────────────────────────────────────────┐
 │              AI Client (NitroStudio Chat / any MCP client) │
-│   "Why did Lot LOT-8923's yield drop, and is the affected  │
-│    shipment export-compliant?"                             │
+│   "Show me the lifecycle of LOT-8923"                       │
 └────────────────────────────┬───────────────────────────────┘
                              │ Model Context Protocol (MCP)
                              ▼
 ┌──────────────────────────────────────────────────────────┐
-│          Orchestrator Module — RootCauseAnalysis         │
-│  Chains calls across all five domain modules, correlates │
-│  results, and returns one synthesized answer             │
+│          Orchestrator Modules                              │
+│  RootCauseAnalysis — cross-domain correlation             │
+│  WaferGenealogy — structured lifecycle timeline           │
 └──────┬──────────┬──────────┬──────────┬──────────┬───────┘
        ▼          ▼          ▼          ▼          ▼
    Design     Manufacturing  Quality    Product    Shipping
@@ -95,13 +94,13 @@ MCP Tool Call (JSON-RPC over stdio)
 NitroStack Tool Handler (validates input via Zod)
         │
         ▼
-Service Layer (fetches from Google Sheets API)
+Service Layer (fetches from Google Sheets published CSV)
         │
         ▼
-Google Sheets (published CSV endpoint)
+Google Sheets → /d/e/{id}/pub?output=csv&gid={tabId}
         │
         ▼
-Response (JSON) → AI synthesizes answer → User sees result
+Response (JSON) → AI synthesizes answer → User sees result + widget
 ```
 
 ---
@@ -118,7 +117,7 @@ Response (JSON) → AI synthesizes answer → User sees result
 | 4 | `get_product_datasheet_specs` | Documentation | Retrieve product specs, voltage limits, certifications |
 | 5 | `get_shipping_and_trade_compliance` | Shipping/Trade | Retrieve shipment route, ECCN, tariffs, customs status |
 | 6 | `analyze_yield_root_cause` | Orchestrator | Cross-domain correlation and root-cause diagnosis |
-| 7 | `trace_wafer_genealogy` | Lifecycle | Full lifecycle trace with timeline widget + physical route |
+| 7 | `trace_wafer_genealogy` | Lifecycle | Structured lifecycle timeline with product, design, manufacturing, testing, and shipping route |
 
 ### 3.2 Tool Details
 
@@ -142,7 +141,7 @@ Retrieves layout/IP block revision metadata — who changed it, what changed, wh
   "designer": "A. Sharma",
   "ipBlock": "SERDES_PHY_BLOCK",
   "changes": "Adjusted metal layer 4 trace spacing to satisfy DRC rules and reduce crosstalk.",
-  "timestamp": "2026-03-24T14:30:00Z"
+  "timestamp": "2025-11-10T09:00:00Z"
 }
 ```
 
@@ -165,7 +164,7 @@ Fetches machine-level process telemetry (chamber pressure, temperature, recipe, 
 ```json
 {
   "lotId": "LOT-8923",
-  "stationId": "ETCH-CHAMBER-07",
+  "stationId": "FAB-HSINCHU-ETCH-07",
   "recipeName": "POLY_SILICON_ETCH_V3",
   "chamberPressure": "14.2 mTorr (Exceeded threshold of 12.0 mTorr between 10:12–10:18)",
   "temperature": "185.4 C",
@@ -192,13 +191,18 @@ Parses STDF test logs and returns a summarized yield report — avoiding payload
 ```json
 {
   "lotId": "LOT-8923",
-  "totalWafersTested": 25,
-  "overallYield": "81.4%",
+  "totalWafersTested": 2000,
+  "overallYield": "81.40%",
   "failingBins": [
     { "binCode": "BIN_12_LEAKAGE", "count": 184, "impact": "High power consumption" },
     { "binCode": "BIN_04_TIMING", "count": 42, "impact": "Clock skew failure" }
   ]
 }
+```
+
+**Note:** `failingBins` in the sheet uses en dash (`–`) as separator, parsed by regex:
+```
+BIN_12_LEAKAGE – 184 failures (Impact: High power consumption)
 ```
 
 ---
@@ -221,7 +225,7 @@ Searches document repositories for a product's official datasheet, operating lim
 {
   "productId": "SERDES-PHY-BLOCK",
   "datasheetUrl": "https://company.sharepoint.com/specs/SERDES-v2.pdf",
-  "operatingVoltage": "1.2V +/- 5%",
+  "operatingVoltage": "1.2V A 5%",
   "maxThermalThreshold": "105 C",
   "complianceCertifications": ["RoHS Compliant", "REACH Certified"]
 }
@@ -265,7 +269,7 @@ Retrieves international shipment logistics, export control classification (ECCN)
 ```json
 {
   "productId": "SERDES-PHY-BLOCK",
-  "totalShipments": 3,
+  "totalShipments": 2,
   "shipments": [
     {
       "shipmentId": "SHIP-2026-04471",
@@ -276,12 +280,18 @@ Retrieves international shipment logistics, export control classification (ECCN)
       "applicableTariffs": "25% Section 301 Tariff + 2.5% Base Duty",
       "status": "Customs Hold: Missing Dual-Use License Endorsement"
     },
-    ...
+    {
+      "shipmentId": "SHIP-2026-05102",
+      "origin": "United States (Austin TX)",
+      "destination": "Germany (Munich)",
+      "eccnClassification": "3A001 (Export Controlled)",
+      "hsCode": "8542.33.0000",
+      "applicableTariffs": "0% EU GSP Preferential Rate",
+      "status": "Cleared: Awaiting Carrier Pickup"
+    }
   ]
 }
 ```
-
-**Use case:** "Are there any restrictions in shipping SERDES-PHY-BLOCK?" → Returns all active shipments with route, ECCN, tariffs, and customs status.
 
 ---
 
@@ -310,7 +320,20 @@ Given a lot ID (and optionally a shipment ID), this tool autonomously:
 ```json
 {
   "lotId": "LOT-8923",
-  "overallYield": "81.4%",
+  "overallYield": "81.40%",
+  "totalWafersTested": 2000,
+  "failingBins": [
+    { "binCode": "BIN_12_LEAKAGE", "count": 184, "impact": "High power consumption" },
+    { "binCode": "BIN_04_TIMING", "count": 42, "impact": "Clock skew failure" }
+  ],
+  "telemetry": {
+    "stationId": "FAB-HSINCHU-ETCH-07",
+    "recipeName": "POLY_SILICON_ETCH_V3",
+    "chamberPressure": "14.2 mTorr (Exceeded threshold of 12.0 mTorr between 10:12–10:18)",
+    "temperature": "185.4 C",
+    "operatorId": "OP-4492",
+    "hasExcursion": true
+  },
   "likelyRootCause": "Chamber pressure excursion (14.2 mTorr) correlates with elevated BIN_12_LEAKAGE failures (184 units) — consistent with incomplete etch creating unintended leakage paths.",
   "designImplicated": false,
   "designNote": "No design revision changes found in the relevant window; root cause is process-based, not layout-based.",
@@ -322,6 +345,8 @@ Given a lot ID (and optionally a shipment ID), this tool autonomously:
 }
 ```
 
+**Widget:** `lot-yield-timeline` — renders yield bar chart, failing bins, telemetry excursion marker, root cause card, and shipment risk badge.
+
 **Correlation logic:**
 
 | Process Excursion | Failure Bin Match | Root Cause |
@@ -330,21 +355,22 @@ Given a lot ID (and optionally a shipment ID), this tool autonomously:
 | Pressure exceeded threshold | `BIN_04_TIMING` | Timing margin degradation |
 | Pressure exceeded threshold | `BIN_07_RESISTANCE` | Open circuits / poor interconnect |
 | No excursion detected | Any | Process-based root cause unlikely — investigate elsewhere |
+| Empty failing bins | — | Yield analysis incomplete or pending |
 
 ---
 
 #### 3.2.7 `trace_wafer_genealogy` (Lifecycle Orchestrator)
 
 **Module:** `WaferGenealogyModule`  
-**Role:** Full lifecycle trace across all 5 domains with timeline visualization  
+**Role:** Structured lifecycle trace across all 5 domains  
 **Data Source:** Cross-module (calls all 5 domain services internally)
 
 Given a batchId (lotId), this tool:
 1. Fetches all records from Design, MES, Quality, Product, and Shipping tabs
-2. Sorts all events chronologically into a single timeline
-3. Groups events into lifecycle phases (Design → Manufacturing → Quality → Product → Shipping)
+2. Extracts the product identity (one product per lot)
+3. Groups events into structured lifecycle phases: **Product → Design → Manufacturing → Testing**
 4. Builds the physical shipping route from ordered shipment legs
-5. Returns a visual timeline widget showing the complete journey
+5. Returns a structured timeline with date-ordered steps per phase
 
 **Input:**
 ```json
@@ -355,32 +381,128 @@ Given a batchId (lotId), this tool:
 ```json
 {
   "batchId": "LOT-8923",
-  "totalEvents": 13,
+  "totalEvents": 7,
+  "product": {
+    "productId": "SERDES-PHY-BLOCK",
+    "lotId": "LOT-8923",
+    "operatingVoltage": "1.2V A 5%",
+    "maxThermalThreshold": "105 C",
+    "complianceCertifications": ["RoHS Compliant", "REACH Certified"]
+  },
   "phases": [
-    { "name": "Design", "icon": "✏️", "color": "#6366f1", "events": [...] },
-    { "name": "Manufacturing", "icon": "🏭", "color": "#f59e0b", "events": [...] },
-    { "name": "Quality & Test", "icon": "🔍", "color": "#10b981", "events": [...] },
-    { "name": "Product", "icon": "📦", "color": "#8b5cf6", "events": [...] },
-    { "name": "Shipping & Trade", "icon": "🚢", "color": "#3b82f6", "events": [...] }
+    {
+      "id": "product",
+      "name": "SERDES-PHY-BLOCK",
+      "color": "#6366f1",
+      "steps": [
+        {
+          "timestamp": "2025-11-10T09:00:00Z",
+          "label": "Product Identity",
+          "description": "SERDES-PHY-BLOCK · 1.2V A 5% · 105 C max",
+          "meta": {
+            "Lot": "LOT-8923",
+            "Voltage": "1.2V A 5%",
+            "Thermal Limit": "105 C",
+            "Certifications": "RoHS Compliant, REACH Certified"
+          }
+        }
+      ]
+    },
+    {
+      "id": "design",
+      "name": "Design",
+      "color": "#8b5cf6",
+      "steps": [
+        {
+          "timestamp": "2025-11-10T09:00:00Z",
+          "label": "REV-SERDES-v2.3",
+          "description": "Adjusted metal layer 4 trace spacing to satisfy DRC rules.",
+          "meta": { "Designer": "A. Sharma", "IP Block": "SERDES_PHY_BLOCK" }
+        },
+        {
+          "timestamp": "2026-01-15T14:30:00Z",
+          "label": "REV-SERDES-v2.4",
+          "description": "Updated PLL loop filter bandwidth to improve jitter.",
+          "meta": { "Designer": "R. Chen", "IP Block": "SERDES_PHY_BLOCK" }
+        }
+      ]
+    },
+    {
+      "id": "manufacturing",
+      "name": "Manufacturing",
+      "color": "#f59e0b",
+      "steps": [
+        {
+          "timestamp": "2026-02-10T08:00:00Z",
+          "label": "FAB-HSINCHU-ETCH-07",
+          "description": "POLY_SILICON_ETCH_V3",
+          "meta": { "Pressure": "14.2 mTorr (Exceeded threshold...)", "Temperature": "185.4 C", "Operator": "OP-4492" }
+        },
+        {
+          "timestamp": "2026-02-12T14:00:00Z",
+          "label": "FAB-HSINCHU-CVD-02",
+          "description": "TEOS_OXIDE_DEPOSITION_V2",
+          "meta": { "Pressure": "8.1 mTorr", "Temperature": "408.7 C", "Operator": "OP-4492" }
+        },
+        {
+          "timestamp": "2026-02-15T09:00:00Z",
+          "label": "FAB-HSINCHU-LITHO-03",
+          "description": "DUV_PATTERNING_V5",
+          "meta": { "Pressure": "7.8 mTorr", "Temperature": "23.1 C", "Operator": "OP-3317" }
+        }
+      ]
+    },
+    {
+      "id": "testing",
+      "name": "Testing",
+      "color": "#10b981",
+      "steps": [
+        {
+          "timestamp": "2026-03-05T10:00:00Z",
+          "label": "Yield: 81.40%",
+          "description": "2000 wafers tested",
+          "meta": { "Yield": "81.40%", "Wafers Tested": "2000", "Failing Bins": "BIN_12_LEAKAGE (184), BIN_04_TIMING (42)" }
+        },
+        {
+          "timestamp": "2026-03-12T10:00:00Z",
+          "label": "Yield: 84.10%",
+          "description": "2000 wafers tested",
+          "meta": { "Yield": "84.10%", "Wafers Tested": "2000", "Failing Bins": "BIN_12_LEAKAGE (142)" }
+        }
+      ]
+    }
   ],
   "route": [
-    { "leg": 1, "origin": "Taiwan (Hsinchu)", "destination": "United States (Austin TX)", "eccnClassification": "3A090.a", "status": "Customs Hold", "isBlocked": true },
-    { "leg": 2, "origin": "South Korea (Hwaseong)", "destination": "Germany (Munich)", "eccnClassification": "3A001", "status": "Cleared", "isBlocked": false },
-    { "leg": 3, "origin": "United States (Austin TX)", "destination": "China (Shanghai)", "eccnClassification": "3A090.a", "status": "Customs Hold", "isBlocked": true }
+    {
+      "leg": 1,
+      "origin": "Taiwan (Hsinchu)",
+      "destination": "United States (Austin TX)",
+      "eccnClassification": "3A090.a (Export Controlled)",
+      "hsCode": "8542.31.0000",
+      "applicableTariffs": "25% Section 301 Tariff + 2.5% Base Duty",
+      "status": "Customs Hold: Missing Dual-Use License Endorsement",
+      "isBlocked": true
+    },
+    {
+      "leg": 2,
+      "origin": "United States (Austin TX)",
+      "destination": "Germany (Munich)",
+      "eccnClassification": "3A001 (Export Controlled)",
+      "hsCode": "8542.33.0000",
+      "applicableTariffs": "0% EU GSP Preferential Rate",
+      "status": "Cleared: Awaiting Carrier Pickup",
+      "isBlocked": false
+    }
   ],
-  "widget": { "batchId": "LOT-8923", "phases": [...], "route": [...], "products": [...] },
-  "timeline": [...],
-  "summary": "..."
+  "summary": "SERDES-PHY-BLOCK (LOT-8923) — Lifecycle Genealogy\n\n[Design]\n  Nov 10, 2025 — REV-SERDES-v2.3\n    Adjusted metal layer 4 trace spacing to satisfy DRC rules.\n    Designer: A. Sharma\n    ...\n\n[Manufacturing]\n  Feb 10, 2026 — FAB-HSINCHU-ETCH-07\n    POLY_SILICON_ETCH_V3\n    Pressure: 14.2 mTorr (Exceeded threshold...)\n    ...\n\n[Testing]\n  Mar 5, 2026 — Yield: 81.40%\n    2000 wafers tested\n    Failing Bins: BIN_12_LEAKAGE (184), BIN_04_TIMING (42)\n    ...\n\n[Shipping Route]\n  Leg 1: Taiwan (Hsinchu) — United States (Austin TX) — Customs Hold\n    ECCN: 3A090.a | HS: 8542.31.0000 | Tariffs: 25% Section 301\n  Leg 2: United States (Austin TX) → Germany (Munich) — Cleared\n    ECCN: 3A001 | HS: 8542.33.0000 | Tariffs: 0% EU GSP"
 }
 ```
 
-**Physical Route:** Each shipping leg is ordered by `routeOrder` column. Blocked legs (customs holds, export restrictions) are flagged with `isBlocked: true`. The AI can describe the exact journey of the wafer lot through the global supply chain.
-
-**Timeline Widget:** When rendered in NitroStudio, the `widget` data feeds an interactive HTML timeline showing:
-- Collapsible lifecycle phases with event counts
-- Color-coded phase cards (Design=indigo, Manufacturing=amber, Quality=emerald, Product=violet, Shipping=blue)
-- Route visualization with blocked/cleared status indicators
-- Event details with timestamps and key metrics
+**Widget:** `wafer-lifecycle` — renders a vertical timeline with:
+- Product identity header (name, voltage, thermal limit, certifications)
+- Phase sections (Design → Manufacturing → Testing) with date-ordered steps
+- Shipping route with origin/destination, ECCN, tariffs, and blocked/cleared status
+- Clean editorial design — no emoji, minimal color, proper typographic hierarchy
 
 ---
 
@@ -395,16 +517,17 @@ Given a batchId (lotId), this tool:
 
 ### 4.2 Sheet Structure
 
-**Sheet ID:** `1e2hu_SSxkcLQNqGDg2CRKikUxv7fpwrWIAlym-cRerY`  
+**Published Sheet URL:** `https://docs.google.com/spreadsheets/d/e/2PACX-1vTM9gAH-TLKghwnmwWQNRrSeVXlXOiMNSGoP7B7IMpxU7KPJoZLfMpkCdZoyRdHXJTEP2oXroBVV5Hj/pubhtml`  
+**CSV Export:** `https://docs.google.com/spreadsheets/d/e/2PACX-.../pub?output=csv&gid={gid}`  
 **Access:** Published to web (anyone with link can view)
 
-| Tab Name | Key Field | Columns |
-|---|---|---|
-| `Design Revisions` | `revisionId` | `revisionId`, `lotId`, `designer`, `ipBlock`, `changes`, `timestamp` |
-| `MES Telemetry` | `lotId` | `lotId`, `stationId`, `recipeName`, `chamberPressure`, `temperature`, `operatorId` |
-| `Yield Data` | `lotId` | `lotId`, `totalWafersTested`, `overallYield`, `failingBins` (JSON array) |
-| `Product Specs` | `productId` | `productId`, `lotId`, `datasheetUrl`, `operatingVoltage`, `maxThermalThreshold`, `complianceCertifications` (JSON array) |
-| `Shipping` | `shipmentId` | `shipmentId`, `productId`, `lotId`, `origin`, `destination`, `eccnClassification`, `hsCode`, `applicableTariffs`, `status`, `routeOrder`, `timestamp` |
+| Tab Name | GID | Key Field | Columns |
+|---|---|---|---|
+| `Design Revisions` | `0` | `revisionId` | `revisionId`, `lotId`, `designer`, `ipBlock`, `changes`, `timestamp` |
+| `MES Telemetry` | `1511561505` | `lotId` | `lotId`, `stationId`, `recipeName`, `chamberPressure`, `temperature`, `operatorId` |
+| `Yield Data` | `318655177` | `lotId` | `lotId`, `totalWafersTested`, `overallYield`, `failingBins` |
+| `Product Specs` | `710900377` | `productId` | `productId`, `lotId`, `datasheetUrl`, `operatingVoltage`, `maxThermalThreshold`, `complianceCertifications` |
+| `Shipping` | `23966863` | `shipmentId` | `shipmentId`, `productId`, `lotId`, `origin`, `destination`, `eccnClassification`, `hsCode`, `applicableTariffs`, `status`, `routeOrder`, `timestamp` |
 
 ### 4.3 Adding New Data
 
@@ -416,7 +539,7 @@ To add a new record, simply add a row to the appropriate tab in the Google Sheet
 3. Add a new row:
 
 ```
-SHIP-2026-07000,ADC-CORE-12B,Japan (Kobe),India (Bengaluru),3A001 (Export Controlled),8542.32.0000,7.5% Basic Customs Duty,Cleared: In Transit
+SHIP-2026-07000,ADC-CORE-12B,LOT-24701,Japan (Kobe),India (Bengaluru),3A001 (Export Controlled),8542.32.0000,7.5% Basic Customs Duty,Cleared: In Transit,1,2026-07-20T06:00:00Z
 ```
 
 4. Wait 30 seconds (cache TTL)
@@ -432,27 +555,46 @@ Product Specs (lotId) ────────┤
 Shipping (lotId + routeOrder) ┘
                                 │
                     Wafer Genealogy Orchestrator
+                    ├── Extracts product identity from Product Specs
                     ├── Groups events into lifecycle phases
                     ├── Sorts shipping by routeOrder → physical route
-                    └── Builds interactive timeline widget
+                    └── Returns structured timeline with steps per phase
 ```
 
 **Key relationships:**
 - **lotId** is the universal link — every tab has a `lotId` column that ties records to a specific wafer batch
+- **One lot = one product** — each lotId maps to exactly one productId for a clean lifecycle story
 - **routeOrder** in Shipping determines the physical path the lot takes through the global supply chain
 - **productId** links Shipping and Product Specs to a specific product type
 - **ipBlock** in Design links revisions to the product's IP blocks
 
-### 4.5 Complex Field Formats
+### 4.5 Data Design Principles
 
-**`failingBins` (Yield Data tab):** Store as a JSON array string:
-```json
-[{"binCode":"BIN_12_LEAKAGE","count":184,"impact":"High power consumption"},{"binCode":"BIN_04_TIMING","count":42,"impact":"Clock skew failure"}]
+Each lot tells a coherent lifecycle story with meaningful chronological dates:
+
+| Phase | Date Range | Meaning |
+|---|---|---|
+| Design | Nov 2025 — Mar 2026 | When the IP block was designed/revised |
+| Manufacturing | Feb — Jun 2026 | When the lot was fabricated (after design) |
+| Testing | Mar — Jul 2026 | When the lot was tested (after fab) |
+| Shipping | Apr — Jul 2026 | When the lot was shipped (after test) |
+
+### 4.6 Complex Field Formats
+
+**`failingBins` (Yield Data tab):** Store as text with en dash separator:
+```
+BIN_12_LEAKAGE – 184 failures (Impact: High power consumption)BIN_04_TIMING – 42 failures (Impact: Clock skew failure)
+```
+The service parses this with regex. Multiple bins are concatenated without delimiters.
+
+**`complianceCertifications` (Product Specs tab):** Store as semicolon-separated text:
+```
+RoHS Compliant; REACH Certified
 ```
 
-**`complianceCertifications` (Product Specs tab):** Store as a JSON array string:
-```json
-["RoHS Compliant","REACH Certified"]
+**`chamberPressure` (MES Telemetry tab):** Store with excursion notes in parentheses:
+```
+14.2 mTorr (Exceeded threshold of 12.0 mTorr between 10:12-10:18)
 ```
 
 ---
@@ -466,7 +608,7 @@ semiconductor-mcp/
 │   ├── index.ts                               # Server entry point — stdio bootstrap
 │   └── modules/
 │       ├── google-sheets/                     # Shared data backend
-│       │   └── google-sheets.service.ts       # Fetches CSV from Google Sheets, parses, caches (30s TTL)
+│       │   └── google-sheets.service.ts       # Fetches published CSV by tab name → gid mapping
 │       ├── design/                            # Cadence Design Revision Module
 │       │   ├── design.module.ts
 │       │   ├── design.service.ts              # Fetches "Design Revisions" tab
@@ -477,11 +619,11 @@ semiconductor-mcp/
 │       │   └── manufacturing.tools.ts        # get_manufacturing_mes_telemetry tool
 │       ├── quality/                           # STDF Quality & Test Diagnostics Module
 │       │   ├── quality.module.ts
-│       │   ├── quality.service.ts             # Fetches "Yield Data" tab, parses failingBins text
+│       │   ├── quality.service.ts             # Fetches "Yield Data" tab, parses en-dash failingBins text
 │       │   └── quality.tools.ts              # get_lot_yield_summary tool
 │       ├── product/                           # Product Datasheets & Specs Module
 │       │   ├── product.module.ts
-│       │   ├── product.service.ts             # Fetches "Product Specs" tab, parses certifications JSON
+│       │   ├── product.service.ts             # Fetches "Product Specs" tab, parses semicolon-separated certs
 │       │   └── product.tools.ts              # get_product_datasheet_specs tool
 │       ├── shipping/                          # Shipping & Trade Compliance Module
 │       │   ├── shipping.module.ts
@@ -489,14 +631,14 @@ semiconductor-mcp/
 │       │   └── shipping.tools.ts             # get_shipping_and_trade_compliance tool
 │       ├── root-cause-analysis/               # Agentic Orchestrator Module
 │       │   ├── root-cause-analysis.module.ts
-│       │   ├── root-cause-analysis.service.ts  # Cross-module correlation logic
-│       │   └── root-cause-analysis.tools.ts   # analyze_yield_root_cause tool
+│       │   ├── root-cause-analysis.service.ts  # Cross-module correlation with enriched output
+│       │   └── root-cause-analysis.tools.ts   # analyze_yield_root_cause + lot-yield-timeline widget
 │       └── wafer-genealogy/                   # Lifecycle Orchestrator Module
 │           ├── wafer-genealogy.module.ts
-│           ├── wafer-genealogy.service.ts      # Builds timeline, route, phases from all sources
-│           ├── wafer-genealogy.tools.ts        # trace_wafer_genealogy tool
-│           ├── genealogy-types.ts              # GenealogyEvent, RouteStop, LifecyclePhase types
-│           ├── genealogy-registry.ts           # Contributor registry (auto-registers all 5)
+│           ├── wafer-genealogy.service.ts      # Structured lifecycle: product → design → mfg → test
+│           ├── wafer-genealogy.tools.ts        # trace_wafer_genealogy + wafer-lifecycle widget
+│           ├── genealogy-types.ts              # ProductInfo, LifecyclePhase, LifecycleStep, RouteStop
+│           ├── genealogy-registry.ts           # Contributor registry
 │           └── contributors/
 │               ├── design.contributor.ts        # Searches Design tab by lotId
 │               ├── manufacturing.contributor.ts # Searches MES tab by lotId
@@ -506,10 +648,12 @@ semiconductor-mcp/
 ├── src/widgets/                                # NitroStack Widgets (Next.js)
 │   ├── app/
 │   │   ├── layout.tsx                          # Widget root layout
-│   │   └── wafer-lifecycle/
-│   │       └── page.tsx                        # Interactive timeline widget
+│   │   ├── wafer-lifecycle/
+│   │   │   └── page.tsx                        # Vertical timeline widget — product, phases, route
+│   │   └── lot-yield-timeline/
+│   │       └── page.tsx                        # Yield root cause dashboard — bar chart, bins, excursion
 │   ├── components/                             # Shared UI components
-│   └── widget-manifest.json                    # Widget registry
+│   └── widget-manifest.json                    # Widget registry (2 widgets)
 ├── package.json
 ├── tsconfig.json
 └── .env.example
@@ -526,7 +670,10 @@ semiconductor-mcp/
 | **Schema Validation** | Zod 3.22 | Input validation + auto-generated tool schemas for AI |
 | **Transport** | stdio | Communication between NitroStudio and MCP server |
 | **Data Backend** | Google Sheets (published CSV) | Live, editable data source |
-| **CSV Parsing** | Custom parser (built-in) | Parses Google Sheets CSV with proper quote handling |
+| **CSV Fetch** | Published sheet API | `GET /d/e/{id}/pub?output=csv&gid={gid}` with tab→gid mapping |
+| **CSV Parsing** | Custom parser (built-in) | Parses CSV with proper quote handling |
+| **Failing Bins** | Regex parser | Handles en-dash (`–`) separator in text-format bins |
+| **Widgets** | NitroStack Widgets (Next.js) | Interactive HTML widgets rendered in NitroStudio |
 | **Testing** | NitroStudio | Visual tool testing + AI chat interface |
 | **AI Integration** | MCP Protocol | Standard protocol for AI-tool communication |
 
@@ -551,12 +698,34 @@ npm install
 
 1. Create a Google Sheet with 5 tabs: `Design Revisions`, `MES Telemetry`, `Yield Data`, `Product Specs`, `Shipping`
 2. Add column headers matching Section 4.2
-3. Add data rows (see Section 4.3 for examples)
+3. Add data rows following the design principles in Section 4.5 (one product per lot, chronological dates)
 4. Go to **File → Share → Publish to web**
 5. Select "Entire Document" → Format: "Comma-separated values (.csv)" → Publish
 6. Ensure sharing is set to **"Anyone with the link can view"**
+7. Note the published sheet URL and tab GIDs (inspect HTML source or use browser dev tools)
 
-### 7.4 Running
+### 7.4 Google Sheets API Configuration
+
+The service uses a published-sheet CSV export URL with hardcoded tab→gid mapping:
+
+```typescript
+// src/modules/google-sheets/google-sheets.service.ts
+const SHEET_ID = '2PACX-1vTM9gAH-TLKghwnmwWQNRrSeVXlXOiMNSGoP7B7IMpxU7KPJoZLfMpkCdZoyRdHXJTEP2oXroBVV5Hj';
+const BASE_URL = `https://docs.google.com/spreadsheets/d/e/${SHEET_ID}/pub`;
+
+// Tab name → GID mapping (update if tabs change)
+private readonly TAB_GIDS: Record<string, string> = {
+    'Design Revisions': '0',
+    'MES Telemetry': '1511561505',
+    'Yield Data': '318655177',
+    'Product Specs': '710900377',
+    'Shipping': '23966863',
+};
+```
+
+If you add/remove/rename tabs, update the `TAB_GIDS` mapping and find the new GID from the published HTML source.
+
+### 7.5 Running
 
 ```bash
 # Development (with hot reload)
@@ -567,7 +736,7 @@ npm run build
 npm start
 ```
 
-### 7.5 Testing in NitroStudio
+### 7.6 Testing in NitroStudio
 
 1. Open NitroStudio
 2. Click **"Select Project"** → navigate to `semiconductor-mcp` folder
@@ -582,7 +751,7 @@ npm start
 
 | Query | Tool Called | Parameters |
 |---|---|---|
-| "Show me revision REV-SERDES-PHY-v2.3" | `get_cadence_design_revision` | `revisionId: "REV-SERDES-PHY-v2.3"` |
+| "Show me revision REV-SERDES-v2.3" | `get_cadence_design_revision` | `revisionId: "REV-SERDES-v2.3"` |
 | "What's the MES telemetry for LOT-8923?" | `get_manufacturing_mes_telemetry` | `lotId: "LOT-8923"` |
 | "How did LOT-8923 test?" | `get_lot_yield_summary` | `lotId: "LOT-8923"` |
 | "What are SERDES-PHY-BLOCK's specs?" | `get_product_datasheet_specs` | `productId: "SERDES-PHY-BLOCK"` |
@@ -595,6 +764,14 @@ npm start
 |---|---|---|
 | "Why did LOT-8923's yield drop?" | `analyze_yield_root_cause` | `lotId: "LOT-8923"` |
 | "Why did LOT-8923's yield drop, and is SHIP-2026-04471 safe?" | `analyze_yield_root_cause` | `lotId: "LOT-8923"`, `shipmentId: "SHIP-2026-04471"` |
+
+### Lifecycle Queries
+
+| Query | Tool Called | Parameters |
+|---|---|---|
+| "Show me the lifecycle of LOT-8923" | `trace_wafer_genealogy` | `batchId: "LOT-8923"` |
+| "Trace the genealogy of LOT-67234" | `trace_wafer_genealogy` | `batchId: "LOT-67234"` |
+| "What's the full history of NPU-ACCELERATOR?" | `trace_wafer_genealogy` | `batchId: "LOT-91456"` |
 
 ---
 
@@ -639,6 +816,8 @@ async myTool(input: MyInput, ctx: ExecutionContext) {
 | **Rate Limiting** | Add rate limits to prevent abuse | Low |
 | **WebSocket Transport** | Replace stdio with WebSocket for web-based clients | Medium |
 | **Additional Orchestrators** | Add tools for compliance-only analysis, design-only audit, etc. | Low |
+| **Yield Trend Analysis** | Multi-lot yield comparison across time for process capability studies | Medium |
+| **Supply Chain Map** | Geographic visualization of shipping routes on a world map | Medium |
 
 ---
 
@@ -647,14 +826,15 @@ async myTool(input: MyInput, ctx: ExecutionContext) {
 | Field | Format | Example |
 |---|---|---|
 | `lotId` | `LOT-####` | `LOT-8923` |
-| `revisionId` | `REV-<block>-v#.#` | `REV-SERDES-PHY-v2.3` |
+| `revisionId` | `REV-<block>-v#.#` | `REV-SERDES-v2.3` |
 | `shipmentId` | `SHIP-YYYY-#####` | `SHIP-2026-04471` |
 | `productId` | uppercase block name | `SERDES-PHY-BLOCK` |
-| `stationId` | `<PROCESS>-CHAMBER-##` | `ETCH-CHAMBER-07` |
-| `eccnClassification` | ECCN format | `3A090.a` |
+| `stationId` | `<FAB>-<PROCESS>-##` | `FAB-HSINCHU-ETCH-07` |
+| `eccnClassification` | ECCN format + description | `3A090.a (Export Controlled)` |
 | `hsCode` | HS code format | `8542.31.0000` |
-| `failingBins` | JSON array | `[{"binCode":"BIN_12_LEAKAGE","count":184,"impact":"..."}]` |
-| `complianceCertifications` | JSON array | `["RoHS Compliant","REACH Certified"]` |
+| `failingBins` | Text format with en dash | `BIN_12_LEAKAGE – 184 failures (Impact: High power consumption)` |
+| `complianceCertifications` | Semicolon-separated text | `RoHS Compliant; REACH Certified` |
+| `chamberPressure` | Value + excursion note | `14.2 mTorr (Exceeded threshold of 12.0 mTorr between 10:12-10:18)` |
 
 ---
 
@@ -667,6 +847,7 @@ async myTool(input: MyInput, ctx: ExecutionContext) {
 | 3 | Retrieve test data | `get_lot_yield_summary` |
 | 4 | Correlate design + test data, explain why a test failed | `analyze_yield_root_cause` (orchestrates 1-3 internally) |
 | 5 | Analyze international trade routes, taxes, laws, orders, shipping | `get_shipping_and_trade_compliance` |
+| 6 | Full lifecycle trace with structured timeline | `trace_wafer_genealogy` (orchestrates all 5 internally) |
 | — | Supporting reference data (compliance limits) | `get_product_datasheet_specs` |
 | — | Product-to-shipment relationship | `get_shipping_and_trade_compliance` (productId lookup) |
 
