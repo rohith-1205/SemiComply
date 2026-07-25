@@ -1,4 +1,4 @@
-import { Injectable, ToolDecorator as Tool, z, ExecutionContext } from '@nitrostack/core';
+import { Injectable, ToolDecorator as Tool, Widget, z, ExecutionContext } from '@nitrostack/core';
 import { RootCauseAnalysisService } from './root-cause-analysis.service.js';
 
 @Injectable({ deps: [RootCauseAnalysisService] })
@@ -17,7 +17,40 @@ export class RootCauseAnalysisTools {
             readOnlyHint: true,
             destructiveHint: false,
         },
+        invocation: {
+            invoking: 'Analyzing root cause...',
+            invoked: 'Root cause analysis complete',
+        },
+        examples: {
+            request: { lotId: 'LOT-8923', shipmentId: 'SHIP-2026-04471' },
+            response: {
+                lotId: 'LOT-8923',
+                overallYield: '81.40%',
+                totalWafersTested: 25,
+                failingBins: [
+                    { binCode: 'BIN_12_LEAKAGE', count: 184, impact: 'High power consumption' },
+                    { binCode: 'BIN_04_TIMING', count: 42, impact: 'Clock skew failure' },
+                ],
+                telemetry: {
+                    stationId: 'ETCH-CHAMBER-07',
+                    recipeName: 'POLY_SILICON_ETCH_V3',
+                    chamberPressure: '14.2 mTorr (Exceeded threshold)',
+                    temperature: '185.4 C',
+                    operatorId: 'OP-4492',
+                    hasExcursion: true,
+                },
+                likelyRootCause: 'Chamber pressure excursion correlates with elevated BIN_12_LEAKAGE failures',
+                designImplicated: false,
+                designNote: 'No design revision changes found; root cause is process-based.',
+                shipmentRisk: {
+                    shipmentId: 'SHIP-2026-04471',
+                    risk: true,
+                    reason: 'Shipment on customs hold — Missing Dual-Use License Endorsement',
+                },
+            },
+        },
     })
+    @Widget('lot-yield-timeline')
     async analyze(input: { lotId: string; shipmentId?: string }, ctx: ExecutionContext) {
         const lotId = String(input.lotId).replace(/^lotId:\s*/i, '').trim();
         const shipmentId = input.shipmentId ? String(input.shipmentId).replace(/^shipmentId:\s*/i, '').trim() : undefined;

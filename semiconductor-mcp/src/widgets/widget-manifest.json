@@ -2,252 +2,79 @@
     "version": "1.0.0",
     "widgets": [
         {
-            "uri": "/pizza-map",
-            "name": "Pizza Map",
-            "description": "Interactive map showing pizza shop locations",
+            "uri": "/lot-yield-timeline",
+            "name": "Lot Yield Timeline",
+            "description": "Yield root cause analysis dashboard with bar chart, failing bins, telemetry excursion marker, and shipment risk badge",
             "examples": [
                 {
-                    "name": "All Shops",
-                    "description": "Display all pizza shops on the map",
+                    "name": "LOT-8923 Analysis",
+                    "description": "Root cause analysis for lot LOT-8923 with pressure excursion",
                     "data": {
-                        "shops": [
-                            {
-                                "id": "tonys-pizza",
-                                "name": "Tony's New York Pizza",
-                                "description": "Authentic New York-style pizza with a crispy thin crust",
-                                "address": "1570 Stockton St, San Francisco, CA 94133",
-                                "coords": [
-                                    -122.4106,
-                                    37.8006
-                                ],
-                                "rating": 4.5,
-                                "reviews": 1250,
-                                "priceLevel": 2,
-                                "cuisine": [
-                                    "Italian",
-                                    "Pizza",
-                                    "New York Style"
-                                ],
-                                "hours": {
-                                    "open": "11:00 AM",
-                                    "close": "10:00 PM"
-                                },
-                                "phone": "(415) 835-9888",
-                                "website": "https://tonyspizzasf.com",
-                                "image": "https://images.unsplash.com/photo-1513104890138-7c749659a591",
-                                "specialties": [
-                                    "Margherita",
-                                    "Pepperoni",
-                                    "White Pizza"
-                                ],
-                                "openNow": true
-                            },
-                            {
-                                "id": "bella-napoli",
-                                "name": "Bella Napoli",
-                                "description": "Traditional Neapolitan pizza baked in a wood-fired oven",
-                                "address": "3854 Geary Blvd, San Francisco, CA 94118",
-                                "coords": [
-                                    -122.4603,
-                                    37.7808
-                                ],
-                                "rating": 4.7,
-                                "reviews": 890,
-                                "priceLevel": 3,
-                                "cuisine": [
-                                    "Italian",
-                                    "Pizza",
-                                    "Neapolitan"
-                                ],
-                                "hours": {
-                                    "open": "12:00 PM",
-                                    "close": "9:00 PM"
-                                },
-                                "phone": "(415) 221-0305",
-                                "image": "https://images.unsplash.com/photo-1574071318508-1cdbab80d002",
-                                "specialties": [
-                                    "Marinara",
-                                    "Quattro Formaggi",
-                                    "Prosciutto e Funghi"
-                                ],
-                                "openNow": true
-                            }
+                        "lotId": "LOT-8923",
+                        "overallYield": "81.40%",
+                        "totalWafersTested": 25,
+                        "failingBins": [
+                            { "binCode": "BIN_12_LEAKAGE", "count": 184, "impact": "High power consumption" },
+                            { "binCode": "BIN_04_TIMING", "count": 42, "impact": "Clock skew failure" }
                         ],
-                        "filter": "all",
-                        "totalShops": 2
-                    }
-                }
-            ],
-            "tags": [
-                "map",
-                "location",
-                "interactive"
-            ]
-        },
-        {
-            "uri": "/pizza-list",
-            "name": "Pizza List",
-            "description": "List view of pizza shops with filtering and sorting",
-            "examples": [
-                {
-                    "name": "All Shops List",
-                    "description": "Display all shops in a list",
-                    "data": {
-                        "shops": [
-                            {
-                                "id": "tonys-pizza",
-                                "name": "Tony's New York Pizza",
-                                "description": "Authentic New York-style pizza with a crispy thin crust",
-                                "address": "1570 Stockton St, San Francisco, CA 94133",
-                                "coords": [
-                                    -122.4106,
-                                    37.8006
-                                ],
-                                "rating": 4.5,
-                                "reviews": 1250,
-                                "priceLevel": 2,
-                                "cuisine": [
-                                    "Italian",
-                                    "Pizza",
-                                    "New York Style"
-                                ],
-                                "hours": {
-                                    "open": "11:00 AM",
-                                    "close": "10:00 PM"
-                                },
-                                "phone": "(415) 835-9888",
-                                "website": "https://tonyspizzasf.com",
-                                "image": "https://images.unsplash.com/photo-1513104890138-7c749659a591",
-                                "specialties": [
-                                    "Margherita",
-                                    "Pepperoni",
-                                    "White Pizza"
-                                ],
-                                "openNow": true
-                            },
-                            {
-                                "id": "bella-napoli",
-                                "name": "Bella Napoli",
-                                "description": "Traditional Neapolitan pizza baked in a wood-fired oven",
-                                "address": "3854 Geary Blvd, San Francisco, CA 94118",
-                                "coords": [
-                                    -122.4603,
-                                    37.7808
-                                ],
-                                "rating": 4.7,
-                                "reviews": 890,
-                                "priceLevel": 3,
-                                "cuisine": [
-                                    "Italian",
-                                    "Pizza",
-                                    "Neapolitan"
-                                ],
-                                "hours": {
-                                    "open": "12:00 PM",
-                                    "close": "9:00 PM"
-                                },
-                                "phone": "(415) 221-0305",
-                                "image": "https://images.unsplash.com/photo-1574071318508-1cdbab80d002",
-                                "specialties": [
-                                    "Marinara",
-                                    "Quattro Formaggi",
-                                    "Prosciutto e Funghi"
-                                ],
-                                "openNow": true
-                            }
-                        ],
-                        "filters": {},
-                        "totalShops": 2
-                    }
-                }
-            ],
-            "tags": [
-                "list",
-                "filter",
-                "sort"
-            ]
-        },
-        {
-            "uri": "/pizza-shop",
-            "name": "Pizza Shop Details",
-            "description": "Detailed information about a specific pizza shop",
-            "examples": [
-                {
-                    "name": "Shop Detail",
-                    "description": "Show details for a specific shop",
-                    "data": {
-                        "shop": {
-                            "id": "tonys-pizza",
-                            "name": "Tony's New York Pizza",
-                            "description": "Authentic New York-style pizza with a crispy thin crust",
-                            "address": "1570 Stockton St, San Francisco, CA 94133",
-                            "coords": [
-                                -122.4106,
-                                37.8006
-                            ],
-                            "rating": 4.5,
-                            "reviews": 1250,
-                            "priceLevel": 2,
-                            "cuisine": [
-                                "Italian",
-                                "Pizza",
-                                "New York Style"
-                            ],
-                            "hours": {
-                                "open": "11:00 AM",
-                                "close": "10:00 PM"
-                            },
-                            "phone": "(415) 835-9888",
-                            "website": "https://tonyspizzasf.com",
-                            "image": "https://images.unsplash.com/photo-1513104890138-7c749659a591",
-                            "specialties": [
-                                "Margherita",
-                                "Pepperoni",
-                                "White Pizza"
-                            ],
-                            "openNow": true
+                        "telemetry": {
+                            "stationId": "ETCH-CHAMBER-07",
+                            "recipeName": "POLY_SILICON_ETCH_V3",
+                            "chamberPressure": "14.2 mTorr (Exceeded threshold)",
+                            "temperature": "185.4 C",
+                            "operatorId": "OP-4492",
+                            "hasExcursion": true
                         },
-                        "relatedShops": [
-                            {
-                                "id": "bella-napoli",
-                                "name": "Bella Napoli",
-                                "description": "Traditional Neapolitan pizza baked in a wood-fired oven",
-                                "address": "3854 Geary Blvd, San Francisco, CA 94118",
-                                "coords": [
-                                    -122.4603,
-                                    37.7808
-                                ],
-                                "rating": 4.7,
-                                "reviews": 890,
-                                "priceLevel": 3,
-                                "cuisine": [
-                                    "Italian",
-                                    "Pizza",
-                                    "Neapolitan"
-                                ],
-                                "hours": {
-                                    "open": "12:00 PM",
-                                    "close": "9:00 PM"
-                                },
-                                "phone": "(415) 221-0305",
-                                "image": "https://images.unsplash.com/photo-1574071318508-1cdbab80d002",
-                                "specialties": [
-                                    "Marinara",
-                                    "Quattro Formaggi",
-                                    "Prosciutto e Funghi"
-                                ],
-                                "openNow": true
-                            }
-                        ]
+                        "likelyRootCause": "Chamber pressure excursion correlates with elevated BIN_12_LEAKAGE failures",
+                        "designImplicated": false,
+                        "designNote": "No design revision changes found; root cause is process-based.",
+                        "shipmentRisk": {
+                            "shipmentId": "SHIP-2026-04471",
+                            "risk": true,
+                            "reason": "Shipment on customs hold — Missing Dual-Use License Endorsement"
+                        }
                     }
                 }
             ],
-            "tags": [
-                "detail",
-                "info",
-                "contact"
-            ]
+            "tags": ["yield", "root-cause", "manufacturing", "semiconductor", "chart"]
+        },
+        {
+            "uri": "/wafer-lifecycle",
+            "name": "Wafer Lifecycle Timeline",
+            "description": "Visual timeline showing the full lifecycle of a wafer batch across design, manufacturing, quality, product, and shipping phases",
+            "examples": [
+                {
+                    "name": "LOT-8923 Lifecycle",
+                    "description": "Full lifecycle timeline for wafer batch LOT-8923",
+                    "data": {
+                        "batchId": "LOT-8923",
+                        "phases": [
+                            {
+                                "name": "Design",
+                                "icon": "✏️",
+                                "color": "#6366f1",
+                                "events": [
+                                    { "timestamp": "2026-02-18T11:45:00Z", "source": "Design Revisions", "processStep": "Design — DMA_CONTROLLER", "details": { "revisionId": "REV-DMA-CTRL-v1.1", "ipBlock": "DMA_CONTROLLER" } }
+                                ]
+                            },
+                            {
+                                "name": "Manufacturing",
+                                "icon": "🏭",
+                                "color": "#f59e0b",
+                                "events": [
+                                    { "timestamp": "2026-07-25T14:40:55Z", "source": "MES Telemetry", "processStep": "Manufacturing — POLY_SILICON_ETCH_V3", "details": { "stationId": "ETCH-CHAMBER-07", "recipeName": "POLY_SILICON_ETCH_V3" } }
+                                ]
+                            }
+                        ],
+                        "route": [
+                            { "leg": 1, "origin": "Taiwan (Hsinchu)", "destination": "United States (Austin TX)", "status": "Customs Hold", "isBlocked": true }
+                        ],
+                        "products": []
+                    }
+                }
+            ],
+            "tags": ["timeline", "wafer", "lifecycle", "manufacturing", "semiconductor"]
         }
     ],
-    "generatedAt": "2025-12-03T00:00:00.000Z"
+    "generatedAt": "2026-07-25T00:00:00.000Z"
 }

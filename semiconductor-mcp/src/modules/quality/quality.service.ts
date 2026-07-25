@@ -18,6 +18,20 @@ export interface YieldSummary {
 export class QualityTestService {
     constructor(private readonly sheets: GoogleSheetsService) {}
 
+    private parseFailingBinsText(raw: string): FailingBin[] {
+        const bins: FailingBin[] = [];
+        const regex = /(\w+)\s*-\s*(\d+)\s*failures?\s*(?:\(Impact:\s*([^)]+)\))?/gi;
+        let match: RegExpExecArray | null;
+        while ((match = regex.exec(raw)) !== null) {
+            bins.push({
+                binCode: match[1],
+                count: parseInt(match[2], 10) || 0,
+                impact: match[3]?.trim() || 'Unknown',
+            });
+        }
+        return bins;
+    }
+
     async getYieldSummary(lotId: string): Promise<YieldSummary | undefined> {
         const map = await this.sheets.fetchSheetAsMap('Yield Data', 'lotId');
         const row = map[lotId];
@@ -28,7 +42,7 @@ export class QualityTestService {
             try {
                 failingBins = JSON.parse(row.failingBins);
             } catch {
-                failingBins = [];
+                failingBins = this.parseFailingBinsText(row.failingBins);
             }
         }
 

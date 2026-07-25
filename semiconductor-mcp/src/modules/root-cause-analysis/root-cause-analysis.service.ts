@@ -7,6 +7,16 @@ import { ShippingTradeService } from '../shipping/shipping.service.js';
 export interface RootCauseResult {
     lotId: string;
     overallYield: string;
+    totalWafersTested: number;
+    failingBins: { binCode: string; count: number; impact: string }[];
+    telemetry: {
+        stationId: string;
+        recipeName: string;
+        chamberPressure: string;
+        temperature: string;
+        operatorId: string;
+        hasExcursion: boolean;
+    } | null;
     likelyRootCause: string;
     designImplicated: boolean;
     designNote: string;
@@ -118,9 +128,23 @@ export class RootCauseAnalysisService {
             }
         }
 
+        const hasExcursion = excursion?.toLowerCase().includes('exceeded threshold') ?? false;
+
         const result: RootCauseResult = {
             lotId,
             overallYield: yieldData.overallYield,
+            totalWafersTested: yieldData.totalWafersTested,
+            failingBins: failureBins,
+            telemetry: telemetry
+                ? {
+                      stationId: telemetry.stationId,
+                      recipeName: telemetry.recipeName,
+                      chamberPressure: telemetry.chamberPressure,
+                      temperature: telemetry.temperature,
+                      operatorId: telemetry.operatorId,
+                      hasExcursion,
+                  }
+                : null,
             likelyRootCause: rootCause,
             designImplicated: design.implicated,
             designNote,

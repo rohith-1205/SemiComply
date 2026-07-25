@@ -118,6 +118,7 @@ Response (JSON) → AI synthesizes answer → User sees result
 | 4 | `get_product_datasheet_specs` | Documentation | Retrieve product specs, voltage limits, certifications |
 | 5 | `get_shipping_and_trade_compliance` | Shipping/Trade | Retrieve shipment route, ECCN, tariffs, customs status |
 | 6 | `analyze_yield_root_cause` | Orchestrator | Cross-domain correlation and root-cause diagnosis |
+| 7 | `trace_wafer_genealogy` | Lifecycle | Full lifecycle trace with timeline widget + physical route |
 
 ### 3.2 Tool Details
 
@@ -332,6 +333,57 @@ Given a lot ID (and optionally a shipment ID), this tool autonomously:
 
 ---
 
+#### 3.2.7 `trace_wafer_genealogy` (Lifecycle Orchestrator)
+
+**Module:** `WaferGenealogyModule`  
+**Role:** Full lifecycle trace across all 5 domains with timeline visualization  
+**Data Source:** Cross-module (calls all 5 domain services internally)
+
+Given a batchId (lotId), this tool:
+1. Fetches all records from Design, MES, Quality, Product, and Shipping tabs
+2. Sorts all events chronologically into a single timeline
+3. Groups events into lifecycle phases (Design → Manufacturing → Quality → Product → Shipping)
+4. Builds the physical shipping route from ordered shipment legs
+5. Returns a visual timeline widget showing the complete journey
+
+**Input:**
+```json
+{ "batchId": "LOT-8923" }
+```
+
+**Output:**
+```json
+{
+  "batchId": "LOT-8923",
+  "totalEvents": 13,
+  "phases": [
+    { "name": "Design", "icon": "✏️", "color": "#6366f1", "events": [...] },
+    { "name": "Manufacturing", "icon": "🏭", "color": "#f59e0b", "events": [...] },
+    { "name": "Quality & Test", "icon": "🔍", "color": "#10b981", "events": [...] },
+    { "name": "Product", "icon": "📦", "color": "#8b5cf6", "events": [...] },
+    { "name": "Shipping & Trade", "icon": "🚢", "color": "#3b82f6", "events": [...] }
+  ],
+  "route": [
+    { "leg": 1, "origin": "Taiwan (Hsinchu)", "destination": "United States (Austin TX)", "eccnClassification": "3A090.a", "status": "Customs Hold", "isBlocked": true },
+    { "leg": 2, "origin": "South Korea (Hwaseong)", "destination": "Germany (Munich)", "eccnClassification": "3A001", "status": "Cleared", "isBlocked": false },
+    { "leg": 3, "origin": "United States (Austin TX)", "destination": "China (Shanghai)", "eccnClassification": "3A090.a", "status": "Customs Hold", "isBlocked": true }
+  ],
+  "widget": { "batchId": "LOT-8923", "phases": [...], "route": [...], "products": [...] },
+  "timeline": [...],
+  "summary": "..."
+}
+```
+
+**Physical Route:** Each shipping leg is ordered by `routeOrder` column. Blocked legs (customs holds, export restrictions) are flagged with `isBlocked: true`. The AI can describe the exact journey of the wafer lot through the global supply chain.
+
+**Timeline Widget:** When rendered in NitroStudio, the `widget` data feeds an interactive HTML timeline showing:
+- Collapsible lifecycle phases with event counts
+- Color-coded phase cards (Design=indigo, Manufacturing=amber, Quality=emerald, Product=violet, Shipping=blue)
+- Route visualization with blocked/cleared status indicators
+- Event details with timestamps and key metrics
+
+---
+
 ## 4. Data Backend (Google Sheets)
 
 ### 4.1 Why Google Sheets
@@ -348,11 +400,11 @@ Given a lot ID (and optionally a shipment ID), this tool autonomously:
 
 | Tab Name | Key Field | Columns |
 |---|---|---|
-| `Design Revisions` | `revisionId` | `revisionId`, `designer`, `ipBlock`, `changes`, `timestamp` |
+| `Design Revisions` | `revisionId` | `revisionId`, `lotId`, `designer`, `ipBlock`, `changes`, `timestamp` |
 | `MES Telemetry` | `lotId` | `lotId`, `stationId`, `recipeName`, `chamberPressure`, `temperature`, `operatorId` |
 | `Yield Data` | `lotId` | `lotId`, `totalWafersTested`, `overallYield`, `failingBins` (JSON array) |
-| `Product Specs` | `productId` | `productId`, `datasheetUrl`, `operatingVoltage`, `maxThermalThreshold`, `complianceCertifications` (JSON array) |
-| `Shipping` | `shipmentId` | `shipmentId`, `productId`, `origin`, `destination`, `eccnClassification`, `hsCode`, `applicableTariffs`, `status` |
+| `Product Specs` | `productId` | `productId`, `lotId`, `datasheetUrl`, `operatingVoltage`, `maxThermalThreshold`, `complianceCertifications` (JSON array) |
+| `Shipping` | `shipmentId` | `shipmentId`, `productId`, `lotId`, `origin`, `destination`, `eccnClassification`, `hsCode`, `applicableTariffs`, `status`, `routeOrder`, `timestamp` |
 
 ### 4.3 Adding New Data
 
@@ -373,20 +425,23 @@ SHIP-2026-07000,ADC-CORE-12B,Japan (Kobe),India (Bengaluru),3A001 (Export Contro
 ### 4.4 Data Relationships
 
 ```
-Product Specs (productId)
-        │
-        ├── Shipping (productId) — links products to their shipments
-        │
-        └── Design Revisions (ipBlock ↔ productId) — implicit link via IP block name
-
-Yield Data (lotId) ──── MES Telemetry (lotId) — same lot, different systems
-
-Root Cause Orchestrator
-        ├── calls Yield Data (lotId)
-        ├── calls MES Telemetry (lotId)
-        ├── calls Design Revisions (revisionId)
-        └── calls Shipping (shipmentId or productId)
+Design Revisions (lotId) ─────┐
+MES Telemetry (lotId) ────────┤
+Yield Data (lotId) ───────────┤── All linked by lotId (e.g., LOT-8923)
+Product Specs (lotId) ────────┤
+Shipping (lotId + routeOrder) ┘
+                                │
+                    Wafer Genealogy Orchestrator
+                    ├── Groups events into lifecycle phases
+                    ├── Sorts shipping by routeOrder → physical route
+                    └── Builds interactive timeline widget
 ```
+
+**Key relationships:**
+- **lotId** is the universal link — every tab has a `lotId` column that ties records to a specific wafer batch
+- **routeOrder** in Shipping determines the physical path the lot takes through the global supply chain
+- **productId** links Shipping and Product Specs to a specific product type
+- **ipBlock** in Design links revisions to the product's IP blocks
 
 ### 4.5 Complex Field Formats
 
@@ -407,7 +462,7 @@ Root Cause Orchestrator
 ```
 semiconductor-mcp/
 ├── src/
-│   ├── app.module.ts                          # Root module — registers all 6 modules + GoogleSheetsService
+│   ├── app.module.ts                          # Root module — registers all 7 modules + GoogleSheetsService
 │   ├── index.ts                               # Server entry point — stdio bootstrap
 │   └── modules/
 │       ├── google-sheets/                     # Shared data backend
@@ -422,7 +477,7 @@ semiconductor-mcp/
 │       │   └── manufacturing.tools.ts        # get_manufacturing_mes_telemetry tool
 │       ├── quality/                           # STDF Quality & Test Diagnostics Module
 │       │   ├── quality.module.ts
-│       │   ├── quality.service.ts             # Fetches "Yield Data" tab, parses failingBins JSON
+│       │   ├── quality.service.ts             # Fetches "Yield Data" tab, parses failingBins text
 │       │   └── quality.tools.ts              # get_lot_yield_summary tool
 │       ├── product/                           # Product Datasheets & Specs Module
 │       │   ├── product.module.ts
@@ -432,10 +487,29 @@ semiconductor-mcp/
 │       │   ├── shipping.module.ts
 │       │   ├── shipping.service.ts            # Fetches "Shipping" tab, supports shipmentId + productId lookup
 │       │   └── shipping.tools.ts             # get_shipping_and_trade_compliance tool
-│       └── root-cause-analysis/               # Agentic Orchestrator Module
-│           ├── root-cause-analysis.module.ts
-│           ├── root-cause-analysis.service.ts  # Cross-module correlation logic
-│           └── root-cause-analysis.tools.ts   # analyze_yield_root_cause tool
+│       ├── root-cause-analysis/               # Agentic Orchestrator Module
+│       │   ├── root-cause-analysis.module.ts
+│       │   ├── root-cause-analysis.service.ts  # Cross-module correlation logic
+│       │   └── root-cause-analysis.tools.ts   # analyze_yield_root_cause tool
+│       └── wafer-genealogy/                   # Lifecycle Orchestrator Module
+│           ├── wafer-genealogy.module.ts
+│           ├── wafer-genealogy.service.ts      # Builds timeline, route, phases from all sources
+│           ├── wafer-genealogy.tools.ts        # trace_wafer_genealogy tool
+│           ├── genealogy-types.ts              # GenealogyEvent, RouteStop, LifecyclePhase types
+│           ├── genealogy-registry.ts           # Contributor registry (auto-registers all 5)
+│           └── contributors/
+│               ├── design.contributor.ts        # Searches Design tab by lotId
+│               ├── manufacturing.contributor.ts # Searches MES tab by lotId
+│               ├── quality.contributor.ts       # Searches Yield tab by lotId
+│               ├── product.contributor.ts       # Searches Product tab by lotId
+│               └── shipping.contributor.ts      # Searches Shipping tab by lotId, sorts by routeOrder
+├── src/widgets/                                # NitroStack Widgets (Next.js)
+│   ├── app/
+│   │   ├── layout.tsx                          # Widget root layout
+│   │   └── wafer-lifecycle/
+│   │       └── page.tsx                        # Interactive timeline widget
+│   ├── components/                             # Shared UI components
+│   └── widget-manifest.json                    # Widget registry
 ├── package.json
 ├── tsconfig.json
 └── .env.example
