@@ -20,7 +20,7 @@ export class QualityTestService {
 
     private parseFailingBinsText(raw: string): FailingBin[] {
         const bins: FailingBin[] = [];
-        const regex = /(\w+)\s*-\s*(\d+)\s*failures?\s*(?:\(Impact:\s*([^)]+)\))?/gi;
+        const regex = /(\w+)\s*[^\w\s]+\s*(\d+)\s*failures?\s*(?:\(Impact:\s*([^)]+)\))?/gi;
         let match: RegExpExecArray | null;
         while ((match = regex.exec(raw)) !== null) {
             bins.push({

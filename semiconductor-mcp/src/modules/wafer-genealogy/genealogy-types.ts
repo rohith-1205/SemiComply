@@ -10,6 +10,29 @@ export interface GenealogyContributor {
     fetchEvents(batchId: string): Promise<GenealogyEvent[]>;
 }
 
+export interface ProductInfo {
+    productId: string;
+    lotId: string;
+    datasheetUrl: string;
+    operatingVoltage: string;
+    maxThermalThreshold: string;
+    complianceCertifications: string[];
+}
+
+export interface LifecycleStep {
+    timestamp: string;
+    label: string;
+    description: string;
+    meta: Record<string, string>;
+}
+
+export interface LifecyclePhase {
+    id: string;
+    name: string;
+    color: string;
+    steps: LifecycleStep[];
+}
+
 export interface RouteStop {
     leg: number;
     origin: string;
@@ -21,11 +44,12 @@ export interface RouteStop {
     isBlocked: boolean;
 }
 
-export interface LifecyclePhase {
-    name: string;
-    icon: string;
-    color: string;
-    events: GenealogyEvent[];
+export interface LifecycleTimeline {
+    batchId: string;
+    product: ProductInfo | null;
+    phases: LifecyclePhase[];
+    route: RouteStop[];
+    summary: string;
 }
 
 export interface GenealogyResult {
@@ -37,8 +61,8 @@ export interface GenealogyResult {
     phases?: LifecyclePhase[];
     widget?: {
         batchId: string;
+        product: ProductInfo | null;
         phases: LifecyclePhase[];
         route: RouteStop[];
-        products: Record<string, unknown>[];
     };
 }

@@ -42,6 +42,10 @@ export class RootCauseAnalysisService {
         excursion: string | undefined,
         failingBins: { binCode: string; count: number; impact: string }[],
     ): string {
+        if (failingBins.length === 0) {
+            return 'No failing bins recorded — yield analysis may be incomplete or pending.';
+        }
+
         if (!excursion) {
             return 'No process parameter excursions detected in MES telemetry. Root cause may be elsewhere.';
         }
@@ -78,7 +82,8 @@ export class RootCauseAnalysisService {
             );
         }
 
-        const topBin = failingBins.sort((a, b) => b.count - a.count)[0];
+        const sorted = [...failingBins].sort((a, b) => b.count - a.count);
+        const topBin = sorted[0];
         return (
             `Process excursion detected (${excursion.split('(')[0].trim()}) may be contributing to ` +
             `${topBin.binCode} failures (${topBin.count} units), though the correlation is not definitive.`

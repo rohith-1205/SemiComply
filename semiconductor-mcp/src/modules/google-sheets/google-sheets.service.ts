@@ -1,7 +1,7 @@
 import { Injectable } from '@nitrostack/core';
 
-const SHEET_ID = '1e2hu_SSxkcLQNqGDg2CRKikUxv7fpwrWIAlym-cRerY';
-const BASE_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv`;
+const SHEET_ID = '2PACX-1vTM9gAH-TLKghwnmwWQNRrSeVXlXOiMNSGoP7B7IMpxU7KPJoZLfMpkCdZoyRdHXJTEP2oXroBVV5Hj';
+const BASE_URL = `https://docs.google.com/spreadsheets/d/e/${SHEET_ID}/pub`;
 
 function parseCsvLine(line: string): string[] {
     const result: string[] = [];
@@ -59,13 +59,26 @@ export class GoogleSheetsService {
     private cache = new Map<string, { data: Record<string, string>[]; timestamp: number }>();
     private readonly CACHE_TTL = 30_000;
 
+    private readonly TAB_GIDS: Record<string, string> = {
+        'Design Revisions': '0',
+        'MES Telemetry': '1511561505',
+        'Yield Data': '318655177',
+        'Product Specs': '710900377',
+        'Shipping': '23966863',
+    };
+
     async fetchSheet(tabName: string): Promise<Record<string, string>[]> {
         const cached = this.cache.get(tabName);
         if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
             return cached.data;
         }
 
-        const url = `${BASE_URL}&sheet=${encodeURIComponent(tabName)}`;
+        const gid = this.TAB_GIDS[tabName];
+        if (!gid) {
+            throw new Error(`Unknown tab name: "${tabName}". Available: ${Object.keys(this.TAB_GIDS).join(', ')}`);
+        }
+
+        const url = `${BASE_URL}?output=csv&gid=${gid}`;
         const response = await fetch(url);
 
         if (!response.ok) {

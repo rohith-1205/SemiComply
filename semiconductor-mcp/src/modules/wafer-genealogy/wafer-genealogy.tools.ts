@@ -8,7 +8,7 @@ export class WaferGenealogyTools {
     @Tool({
         name: 'trace_wafer_genealogy',
         title: 'Wafer Batch Genealogy Trace',
-        description: 'Traces the complete lifecycle of a wafer batch across all manufacturing systems. Given a batchId (which maps to lotId), retrieves and chronologically combines records from Design Revisions, MES Telemetry, Yield Data, Product Specs, and Shipping into a single genealogy timeline. Returns both a structured event list sorted by time, a concise human-readable lifecycle summary, and a visual timeline widget showing the full journey from design through shipping. Use this when the user asks for the full history, genealogy, or lifecycle of a wafer batch.',
+        description: 'Traces the complete lifecycle of a wafer batch. Given a batchId (lotId), retrieves and structures records from Design, Manufacturing, Testing, Product Specs, and Shipping into a chronological lifecycle timeline. Returns the product identity, design revision history, manufacturing steps, test results, and physical shipping route. Use this when the user asks for the history, genealogy, lifecycle, or trace of a wafer lot.',
         inputSchema: z.object({
             batchId: z.string().describe('The wafer batch/lot ID to trace, e.g. LOT-8923'),
         }),
@@ -24,16 +24,45 @@ export class WaferGenealogyTools {
             request: { batchId: 'LOT-8923' },
             response: {
                 batchId: 'LOT-8923',
-                totalEvents: 13,
+                totalEvents: 7,
+                product: {
+                    productId: 'SERDES-PHY-BLOCK',
+                    lotId: 'LOT-8923',
+                    operatingVoltage: '1.2V ± 5%',
+                    maxThermalThreshold: '105 °C',
+                    complianceCertifications: ['RoHS Compliant', 'REACH Certified'],
+                },
                 phases: [
-                    { name: 'Design', icon: '✏️', color: '#6366f1', events: [{ timestamp: '2026-02-18T11:45:00Z', source: 'Design Revisions', processStep: 'Design — DMA_CONTROLLER', details: { revisionId: 'REV-DMA-CTRL-v1.1', designer: 'M. Patel', ipBlock: 'DMA_CONTROLLER', changes: 'Fixed AXI bus protocol violation' } }] },
-                    { name: 'Manufacturing', icon: '🏭', color: '#f59e0b', events: [{ timestamp: '2026-07-25T14:40:55Z', source: 'MES Telemetry', processStep: 'Manufacturing — POLY_SILICON_ETCH_V3', details: { stationId: 'ETCH-CHAMBER-07', recipeName: 'POLY_SILICON_ETCH_V3', temperature: '185.4 °C' } }] },
+                    {
+                        id: 'design',
+                        name: 'Design',
+                        color: '#8b5cf6',
+                        steps: [
+                            { timestamp: '2025-11-10T09:00:00Z', label: 'REV-SERDES-v2.3', description: 'Adjusted metal layer 4 trace spacing to satisfy DRC rules.', meta: { Designer: 'A. Sharma', 'IP Block': 'SERDES_PHY_BLOCK' } },
+                            { timestamp: '2026-01-15T14:30:00Z', label: 'REV-SERDES-v2.4', description: 'Updated PLL loop filter bandwidth to improve jitter performance.', meta: { Designer: 'R. Chen', 'IP Block': 'SERDES_PHY_BLOCK' } },
+                        ],
+                    },
+                    {
+                        id: 'manufacturing',
+                        name: 'Manufacturing',
+                        color: '#f59e0b',
+                        steps: [
+                            { timestamp: '2026-02-10T08:00:00Z', label: 'FAB-HSINCHU-ETCH-07', description: 'POLY_SILICON_ETCH_V3', meta: { Pressure: '14.2 mTorr', Temperature: '185.4 °C' } },
+                        ],
+                    },
+                    {
+                        id: 'testing',
+                        name: 'Testing',
+                        color: '#10b981',
+                        steps: [
+                            { timestamp: '2026-03-05T10:00:00Z', label: 'Yield: 81.40%', description: '2000 wafers tested', meta: { Yield: '81.40%', 'Failing Bins': 'BIN_12_LEAKAGE (184)' } },
+                        ],
+                    },
                 ],
                 route: [
                     { leg: 1, origin: 'Taiwan (Hsinchu)', destination: 'United States (Austin TX)', eccnClassification: '3A090.a', hsCode: '8542.31.0000', applicableTariffs: '25% Section 301', status: 'Customs Hold', isBlocked: true },
-                    { leg: 2, origin: 'South Korea (Hwaseong)', destination: 'Germany (Munich)', eccnClassification: '3A001', hsCode: '8542.33.0000', applicableTariffs: '0% EU GSP', status: 'Cleared', isBlocked: false },
                 ],
-                summary: 'Wafer Batch LOT-8923 — 13 events across 5 sources',
+                summary: 'SERDES-PHY-BLOCK (LOT-8923) — 7 events across 4 sources',
             },
         },
     })
@@ -49,11 +78,10 @@ export class WaferGenealogyTools {
             return {
                 batchId: result.batchId,
                 totalEvents: result.totalEvents,
-                timeline: result.timeline,
+                product: result.widget?.product || null,
+                phases: result.phases || [],
+                route: result.route || [],
                 summary: result.summary,
-                route: result.route,
-                phases: result.phases,
-                products: result.widget?.products || [],
             };
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
